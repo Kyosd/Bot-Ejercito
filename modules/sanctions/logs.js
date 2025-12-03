@@ -1,12 +1,18 @@
 // modules/sanctions/logs.js
 const { EmbedBuilder } = require("discord.js");
 
-module.exports = async function logSanction(bot, action, generalId, targetId, detail = "-") {
+module.exports = async function logSanction(
+    bot,
+    action,
+    generalId,
+    targetId,
+    detail = "-"
+) {
+    const mod = bot.modules.sanctions;
+    const cfg = mod.config;
     const timestamp = Date.now();
 
-    // ============================================
-    // GUARDAR LOG EN LA BASE DE DATOS
-    // ============================================
+    // Guardar en BD
     await bot.db.run(
         `
         INSERT INTO sanction_logs (action, general_id, target_soldier_id, detail, timestamp)
@@ -15,19 +21,23 @@ module.exports = async function logSanction(bot, action, generalId, targetId, de
         [action, generalId, targetId || null, detail, timestamp]
     );
 
-    // ============================================
-    // ENVIAR EMBED AL CANAL DE LOGS
-    // ============================================
-    const logsChannel = bot.client.channels.cache.get(process.env.SANCTIONS_LOGS_CHANNEL);
+    // Canal de logs
+    if (!cfg.logsChannel) return;
+
+    const logsChannel = bot.client.channels.cache.get(cfg.logsChannel);
     if (!logsChannel) return;
 
     const embed = new EmbedBuilder()
-        .setColor("#1e2b3c")
+        .setColor(cfg.colors.log)
         .setTitle("📘 Log del Sistema de Sanciones")
         .addFields(
             { name: "Acción", value: action },
             { name: "General", value: `<@${generalId}>`, inline: true },
-            { name: "Objetivo", value: targetId ? `<@${targetId}>` : "N/A", inline: true },
+            {
+                name: "Objetivo",
+                value: targetId ? `<@${targetId}>` : "N/A",
+                inline: true
+            },
             { name: "Detalles", value: detail }
         )
         .setFooter({ text: new Date(timestamp).toLocaleString() });

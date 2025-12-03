@@ -1,79 +1,45 @@
+"use strict";
+
 const {
     EmbedBuilder,
     ActionRowBuilder,
-    ButtonBuilder,
+    StringSelectMenuBuilder,
     ModalBuilder,
     TextInputBuilder,
     TextInputStyle
 } = require("discord.js");
 
-const config = require("../../core/config");
 const weekly = require("./weekly");
+const config = require("./config");
+const logs   = require("./logs");
 
-/* ---------------------------------------------- */
-/*                VALIDADOR DE GENERALES          */
-/* ---------------------------------------------- */
+/* --------------------------- helpers --------------------------- */
+
 function isGeneral(memberOrId) {
-    const ids = config.generals;
+    const ids = config.generals || [];
+    if (!ids.length) return false;
 
-    // Si se pasa un string (userId)
     if (typeof memberOrId === "string") {
         return ids.includes(memberOrId);
     }
 
-    // Si se pasa un GuildMember
-    if (memberOrId?.id && ids.includes(memberOrId.id)) {
-        return true;
-    }
+    if (!memberOrId) return false;
 
-    // Si tiene roles en la lista
-    if (memberOrId?.roles?.cache) {
-        return memberOrId.roles.cache.some(role => ids.includes(role.id));
+    if (ids.includes(memberOrId.id)) return true;
+
+    if (memberOrId.roles?.cache) {
+        return memberOrId.roles.cache.some(r => ids.includes(r.id));
     }
 
     return false;
 }
 
-/* ---------------------------------------------- */
-/*               FACTORÍA DE MODALS               */
-/* ---------------------------------------------- */
-function createUserModal(customId, title, requireMinutes = false) {
-    const modal = new ModalBuilder()
-        .setCustomId(customId)
-        .setTitle(title);
+/* ----------------------------- módulo -------------------------- */
 
-    const userInput = new TextInputBuilder()
-        .setCustomId("TARGET_USER_ID")
-        .setLabel("ID del usuario")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true);
-
-    modal.addComponents(new ActionRowBuilder().addComponents(userInput));
-
-    if (requireMinutes) {
-        const minutesInput = new TextInputBuilder()
-            .setCustomId("TARGET_MINUTES")
-            .setLabel("Cantidad de minutos")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true);
-
-        modal.addComponents(new ActionRowBuilder().addComponents(minutesInput));
-    }
-
-    return modal;
-}
-
-/* ---------------------------------------------- */
-/*                MÓDULO PRINCIPAL                */
-/* ---------------------------------------------- */
 module.exports = {
 
-    /* ---------------------------------------------- */
-    /*               PANEL DE GENERALES               */
-    /* ---------------------------------------------- */
     async openPanel(bot, interaction) {
-
-        if (!isGeneral(interaction.member)) {
+        if (!isGeneral(interaction.member ?? interaction.user)) {
             return interaction.reply({
                 content: "No tienes autorización para acceder al Panel de Generales.",
                 ephemeral: true
@@ -81,88 +47,91 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-            .setColor(config.style.color)
-            .setTitle(`🎖️ Panel de Generales — ${config.style.systemName}`)
+            .setColor(config.colors.embed)
+            .setTitle(`🎖️ Panel de Generales — ${config.system.name}`)
             .setDescription(
-                "Herramientas tácticas para administración de horas de servicio.\n\n" +
-                "**Opciones disponibles:**\n" +
-                "1️⃣ Forzar salida de un soldado\n" +
-                "2️⃣ Añadir horas manualmente\n" +
-                "3️⃣ Quitar horas manualmente\n" +
-                "4️⃣ Resetear horas de un soldado\n" +
-                "5️⃣ Resetear horas de todos\n" +
-                "6️⃣ Ver historial semanal de un soldado\n" +
-                "7️⃣ Ver historial total de un soldado\n" +
-                "8️⃣ Bloquear a un soldado\n" +
-                "9️⃣ Desbloquear a un soldado\n" +
-                "🔟 Ver reporte semanal manual\n"
+                "Centro de mando táctico para administración de horas.\n\n" +
+                "Selecciona una operación del menú desplegable."
             )
-            .setFooter({ text: config.style.footer });
+            .setFooter({ text: config.system.footer });
 
-        const row1 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId("HOURS_GENERAL_FORCE_OUT").setLabel("1️⃣ Forzar salida").setStyle("Danger"),
-            new ButtonBuilder().setCustomId("HOURS_GENERAL_ADD_HOURS").setLabel("2️⃣ Añadir horas").setStyle("Primary"),
-            new ButtonBuilder().setCustomId("HOURS_GENERAL_REMOVE_HOURS").setLabel("3️⃣ Quitar horas").setStyle("Secondary")
-        );
-
-        const row2 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId("HOURS_GENERAL_RESET_USER").setLabel("4️⃣ Reset usuario").setStyle("Secondary"),
-            new ButtonBuilder().setCustomId("HOURS_GENERAL_RESET_ALL").setLabel("5️⃣ Reset todos").setStyle("Danger"),
-            new ButtonBuilder().setCustomId("HOURS_GENERAL_HISTORY_WEEK").setLabel("6️⃣ Historial semanal").setStyle("Primary")
-        );
-
-        const row3 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId("HOURS_GENERAL_HISTORY_TOTAL").setLabel("7️⃣ Historial total").setStyle("Primary"),
-            new ButtonBuilder().setCustomId("HOURS_GENERAL_BLOCK").setLabel("8️⃣ Bloquear").setStyle("Danger"),
-            new ButtonBuilder().setCustomId("HOURS_GENERAL_UNBLOCK").setLabel("9️⃣ Desbloquear").setStyle("Success")
-        );
-
-        const row4 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId("HOURS_GENERAL_WEEKLY_REPORT").setLabel("🔟 Reporte semanal").setStyle("Primary")
+        const row = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId("HOURS_GENERAL_MENU")
+                .setPlaceholder("Selecciona una operación militar…")
+                .addOptions([
+                    { label: "Ver soldados en servicio",            value: "IN_SERVICE" },
+                    { label: "Forzar salida de un soldado",          value: "FORCE_OUT" },
+                    { label: "Añadir horas manualmente",             value: "ADD_HOURS" },
+                    { label: "Quitar horas manualmente",             value: "REMOVE_HOURS" },
+                    { label: "Resetear horas de un soldado",         value: "RESET_USER" },
+                    { label: "Resetear horas de todos",              value: "RESET_ALL" },
+                    { label: "Historial semanal de un soldado",      value: "HISTORY_WEEK" },
+                    { label: "Historial total de un soldado",        value: "HISTORY_TOTAL" },
+                    { label: "Bloquear soldado",                     value: "BLOCK" },
+                    { label: "Desbloquear soldado",                  value: "UNBLOCK" },
+                    { label: "Reporte semanal (manual)",             value: "WEEKLY_REPORT" }
+                ])
         );
 
         return interaction.reply({
             embeds: [embed],
-            components: [row1, row2, row3, row4],
+            components: [row],
             ephemeral: true
         });
     },
 
-    /* ---------------------------------------------- */
-    /*              BOTONES DEL PANEL                 */
-    /* ---------------------------------------------- */
-    async handleButton(bot, interaction) {
-
-        if (!isGeneral(interaction.member)) {
+    // primer select: tipo de operación
+    async handleGeneralMenu(bot, interaction) {
+        if (!isGeneral(interaction.member ?? interaction.user)) {
             return interaction.reply({
                 content: "No tienes autorización para ejecutar acciones de general.",
                 ephemeral: true
             });
         }
 
-        const id = interaction.customId;
         const db = bot.db;
+        const option = interaction.values?.[0];
 
-        const modalActions = {
-            "HOURS_GENERAL_FORCE_OUT": ["MOD_HOURS_FORCE_OUT", "Forzar salida de soldado", false],
-            "HOURS_GENERAL_ADD_HOURS": ["MOD_HOURS_ADD_HOURS", "Añadir horas manualmente", true],
-            "HOURS_GENERAL_REMOVE_HOURS": ["MOD_HOURS_REMOVE_HOURS", "Quitar horas manualmente", true],
-            "HOURS_GENERAL_RESET_USER": ["MOD_HOURS_RESET_USER", "Resetear horas de un soldado", false],
-            "HOURS_GENERAL_HISTORY_WEEK": ["MOD_HOURS_HISTORY_WEEK", "Historial semanal de un soldado", false],
-            "HOURS_GENERAL_HISTORY_TOTAL": ["MOD_HOURS_HISTORY_TOTAL", "Historial total de un soldado", false],
-            "HOURS_GENERAL_BLOCK": ["MOD_HOURS_BLOCK", "Bloquear soldado", false],
-            "HOURS_GENERAL_UNBLOCK": ["MOD_HOURS_UNBLOCK", "Desbloquear soldado", false],
-        };
-
-        if (modalActions[id]) {
-            const [customId, title, needMinutes] = modalActions[id];
-            const modal = createUserModal(customId, title, needMinutes);
-            return interaction.showModal(modal);
+        if (!option) {
+            return interaction.reply({
+                content: "Acción no válida.",
+                ephemeral: true
+            });
         }
 
-        if (id === "HOURS_GENERAL_RESET_ALL") {
+        // 1) Ver soldados actualmente en servicio
+        if (option === "IN_SERVICE") {
+            const rows = await db.all("SELECT * FROM hours_active");
+
+            if (!rows.length) {
+                return interaction.reply({
+                    content: "No hay soldados en servicio actualmente.",
+                    ephemeral: true
+                });
+            }
+
+            let desc = "";
+            for (const r of rows) {
+                const user = bot.client.users.cache.get(r.user_id);
+                desc += `• ${user ? user.tag : r.user_id} — desde <t:${Math.floor(r.start / 1000)}:R>\n`;
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor(config.colors.embed)
+                .setTitle("👁️ Soldados en servicio")
+                .setDescription(desc)
+                .setFooter({ text: config.system.footer });
+
+            return interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+
+        // 2) Reset total
+        if (option === "RESET_ALL") {
             await db.run("DELETE FROM hours_active");
             await db.run("DELETE FROM hours_sessions");
+
+            await logs.resetAll(bot, interaction.user);
 
             return interaction.reply({
                 content: "Todas las horas y servicios activos han sido reseteados.",
@@ -170,17 +139,62 @@ module.exports = {
             });
         }
 
-        if (id === "HOURS_GENERAL_WEEKLY_REPORT") {
+        // 3) Reporte semanal manual
+        if (option === "WEEKLY_REPORT") {
             return weekly.generate(bot, false, interaction, true);
         }
+
+        // 4) Operaciones que requieren selección de soldado
+        let rows;
+
+        if (option === "FORCE_OUT") {
+            rows = await db.all("SELECT user_id FROM hours_active ORDER BY start ASC");
+            if (!rows.length) {
+                return interaction.reply({
+                    content: "No hay soldados con servicio activo.",
+                    ephemeral: true
+                });
+            }
+        } else {
+            rows = await db.all(`
+                SELECT DISTINCT user_id FROM hours_sessions
+                UNION
+                SELECT user_id FROM hours_active
+            `);
+
+            if (!rows.length) {
+                return interaction.reply({
+                    content: "No hay soldados registrados en el sistema de horas.",
+                    ephemeral: true
+                });
+            }
+        }
+
+        const options = rows.slice(0, 25).map(r => {
+            const user = bot.client.users.cache.get(r.user_id);
+            return {
+                label: user ? user.tag : r.user_id,
+                value: r.user_id
+            };
+        });
+
+        const row = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`HOURS_GENERAL_TARGET_${option}`)
+                .setPlaceholder("Selecciona un soldado…")
+                .addOptions(options)
+        );
+
+        return interaction.reply({
+            content: "Selecciona el soldado objetivo.",
+            components: [row],
+            ephemeral: true
+        });
     },
 
-    /* ---------------------------------------------- */
-    /*                  MANEJO DE MODALS              */
-    /* ---------------------------------------------- */
-    async handleModal(bot, interaction) {
-
-        if (!isGeneral(interaction.member)) {
+    // segundo select: elegir soldado en función de la operación
+    async handleTargetSelect(bot, interaction) {
+        if (!isGeneral(interaction.member ?? interaction.user)) {
             return interaction.reply({
                 content: "No tienes autorización para ejecutar acciones de general.",
                 ephemeral: true
@@ -189,85 +203,73 @@ module.exports = {
 
         const db = bot.db;
         const id = interaction.customId;
+        const action = id.replace("HOURS_GENERAL_TARGET_", "");
+        const userId = interaction.values?.[0];
 
-        const userId = interaction.fields.getTextInputValue("TARGET_USER_ID");
-        const minutesRaw = interaction.fields.getTextInputValue("TARGET_MINUTES") || null;
-        const minutes = minutesRaw ? parseInt(minutesRaw, 10) : null;
+        if (!userId) {
+            return interaction.reply({
+                content: "No se ha seleccionado ningún soldado.",
+                ephemeral: true
+            });
+        }
 
-        /* ---------------------------------------------- */
-        /*           FORZAR SALIDA DE SERVICIO            */
-        /* ---------------------------------------------- */
-        if (id === "MOD_HOURS_FORCE_OUT") {
+        // FORZAR SALIDA
+        if (action === "FORCE_OUT") {
             const active = await db.get("SELECT * FROM hours_active WHERE user_id = ?", [userId]);
 
             if (!active) {
-                return interaction.reply({ content: "Ese usuario no tiene un servicio activo.", ephemeral: true });
+                return interaction.reply({
+                    content: "Ese soldado no tiene un servicio activo.",
+                    ephemeral: true
+                });
             }
 
             const now = Date.now();
-            const mins = Math.floor((now - active.start) / 60000);
+            let minutes = Math.max(0, Math.floor((now - active.start) / 60000));
+            if (minutes < config.settings.minSessionMinutes) {
+                minutes = config.settings.minSessionMinutes;
+            }
 
             await db.run(
                 "INSERT INTO hours_sessions (user_id, start, end, duration) VALUES (?, ?, ?, ?)",
-                [userId, active.start, now, mins]
+                [userId, active.start, now, minutes]
             );
 
             await db.run("DELETE FROM hours_active WHERE user_id = ?", [userId]);
 
+            await logs.forceOut(bot, interaction.user, userId, minutes);
+
             return interaction.reply({
-                content: `Salida forzada aplicada a <@${userId}>. Se registran **${mins} minutos**.`,
+                content: `Salida forzada aplicada a <@${userId}>. Se registran **${minutes} minutos**.`,
                 ephemeral: true
             });
         }
 
-        /* ---------------------------------------------- */
-        /*           AÑADIR HORAS MANUALMENTE            */
-        /* ---------------------------------------------- */
-        if (id === "MOD_HOURS_ADD_HOURS") {
-            if (!minutes || isNaN(minutes)) {
-                return interaction.reply({ content: "Los minutos ingresados no son válidos.", ephemeral: true });
-            }
+        // ADD / REMOVE HORAS → abrir modal sólo con minutos
+        if (action === "ADD_HOURS" || action === "REMOVE_HOURS") {
+            const modal = new ModalBuilder()
+                .setCustomId(`MOD_HOURS_${action}:${userId}`)
+                .setTitle(action === "ADD_HOURS" ? "Añadir minutos de servicio" : "Quitar minutos de servicio");
 
-            const now = Date.now();
+            const minutesInput = new TextInputBuilder()
+                .setCustomId("TARGET_MINUTES")
+                .setLabel("Cantidad de minutos")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
 
-            await db.run(
-                "INSERT INTO hours_sessions (user_id, start, end, duration) VALUES (?, ?, ?, ?)",
-                [userId, now, now, minutes]
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(minutesInput)
             );
 
-            return interaction.reply({
-                content: `Se han añadido **${minutes} minutos** a <@${userId}>.`,
-                ephemeral: true
-            });
+            return interaction.showModal(modal);
         }
 
-        /* ---------------------------------------------- */
-        /*           QUITAR HORAS MANUALMENTE            */
-        /* ---------------------------------------------- */
-        if (id === "MOD_HOURS_REMOVE_HOURS") {
-            if (!minutes || isNaN(minutes)) {
-                return interaction.reply({ content: "Los minutos ingresados no son válidos.", ephemeral: true });
-            }
-
-            const now = Date.now();
-
-            await db.run(
-                "INSERT INTO hours_sessions (user_id, start, end, duration) VALUES (?, ?, ?, ?)",
-                [userId, now, now, -Math.abs(minutes)]
-            );
-
-            return interaction.reply({
-                content: `Se han restado **${minutes} minutos** a <@${userId}>.`,
-                ephemeral: true
-            });
-        }
-
-        /* ---------------------------------------------- */
-        /*           RESET HORAS DE UN USUARIO           */
-        /* ---------------------------------------------- */
-        if (id === "MOD_HOURS_RESET_USER") {
+        // RESET USUARIO
+        if (action === "RESET_USER") {
             await db.run("DELETE FROM hours_active WHERE user_id = ?", [userId]);
             await db.run("DELETE FROM hours_sessions WHERE user_id = ?", [userId]);
+
+            await logs.resetUser(bot, interaction.user, userId);
 
             return interaction.reply({
                 content: `Se han reseteado todas las horas de <@${userId}>.`,
@@ -275,10 +277,8 @@ module.exports = {
             });
         }
 
-        /* ---------------------------------------------- */
-        /*         HISTORIAL SEMANAL DE UN SOLDADO        */
-        /* ---------------------------------------------- */
-        if (id === "MOD_HOURS_HISTORY_WEEK") {
+        // HISTORIAL SEMANAL
+        if (action === "HISTORY_WEEK") {
             const resetAt = await weekly.ensureMeta(bot);
 
             const rows = await db.all(
@@ -307,18 +307,16 @@ module.exports = {
             const tm = total % 60;
 
             const embed = new EmbedBuilder()
-                .setColor(config.style.color)
+                .setColor(config.colors.embed)
                 .setTitle(`📘 Historial semanal — <@${userId}>`)
                 .setDescription(desc + `\n**Total semanal:** ${th}h ${tm}m`)
-                .setFooter({ text: config.style.footer });
+                .setFooter({ text: config.system.footer });
 
             return interaction.reply({ embeds: [embed], ephemeral: true });
         }
 
-        /* ---------------------------------------------- */
-        /*           HISTORIAL TOTAL DEL USUARIO          */
-        /* ---------------------------------------------- */
-        if (id === "MOD_HOURS_HISTORY_TOTAL") {
+        // HISTORIAL TOTAL
+        if (action === "HISTORY_TOTAL") {
             const rows = await db.all(
                 "SELECT * FROM hours_sessions WHERE user_id = ? ORDER BY start ASC",
                 [userId]
@@ -345,19 +343,19 @@ module.exports = {
             const tm = total % 60;
 
             const embed = new EmbedBuilder()
-                .setColor(config.style.color)
+                .setColor(config.colors.embed)
                 .setTitle(`📘 Historial total — <@${userId}>`)
                 .setDescription(desc + `\n**Total histórico:** ${th}h ${tm}m`)
-                .setFooter({ text: config.style.footer });
+                .setFooter({ text: config.system.footer });
 
             return interaction.reply({ embeds: [embed], ephemeral: true });
         }
 
-        /* ---------------------------------------------- */
-        /*             BLOQUEAR / DESBLOQUEAR             */
-        /* ---------------------------------------------- */
-        if (id === "MOD_HOURS_BLOCK") {
+        // BLOQUEAR
+        if (action === "BLOCK") {
             await db.run("INSERT OR REPLACE INTO hours_blocked (user_id) VALUES (?)", [userId]);
+
+            await logs.block(bot, interaction.user, userId);
 
             return interaction.reply({
                 content: `<@${userId}> ha sido bloqueado para registrar servicio.`,
@@ -365,11 +363,72 @@ module.exports = {
             });
         }
 
-        if (id === "MOD_HOURS_UNBLOCK") {
+        // DESBLOQUEAR
+        if (action === "UNBLOCK") {
             await db.run("DELETE FROM hours_blocked WHERE user_id = ?", [userId]);
+
+            await logs.unblock(bot, interaction.user, userId);
 
             return interaction.reply({
                 content: `<@${userId}> ha sido desbloqueado.`,
+                ephemeral: true
+            });
+        }
+    },
+
+    // modals para ADD / REMOVE horas
+    async handleModal(bot, interaction) {
+        if (!isGeneral(interaction.member ?? interaction.user)) {
+            return interaction.reply({
+                content: "No tienes autorización para ejecutar acciones de general.",
+                ephemeral: true
+            });
+        }
+
+        const db = bot.db;
+
+        const [prefix, actionAndUser] = interaction.customId.split("MOD_HOURS_");
+        if (!actionAndUser) return;
+
+        const [action, userId] = actionAndUser.split(":");
+        const minutesRaw = interaction.fields.getTextInputValue("TARGET_MINUTES");
+        const minutes = parseInt(minutesRaw, 10);
+
+        if (!minutes || isNaN(minutes) || minutes <= 0) {
+            return interaction.reply({
+                content: "Los minutos ingresados no son válidos.",
+                ephemeral: true
+            });
+        }
+
+        const now = Date.now();
+
+        if (action === "ADD_HOURS") {
+            await db.run(
+                "INSERT INTO hours_sessions (user_id, start, end, duration) VALUES (?, ?, ?, ?)",
+                [userId, now, now, minutes]
+            );
+
+            await logs.manualAdd(bot, interaction.user, userId, minutes);
+
+            return interaction.reply({
+                content: `Se han añadido **${minutes} minutos** a <@${userId}>.`,
+                ephemeral: true
+            });
+        }
+
+        if (action === "REMOVE_HOURS") {
+            const delta = -Math.abs(minutes);
+
+            await db.run(
+                "INSERT INTO hours_sessions (user_id, start, end, duration) VALUES (?, ?, ?, ?)",
+                [userId, now, now, delta]
+            );
+
+            await logs.manualRemove(bot, interaction.user, userId, minutes);
+
+            return interaction.reply({
+                content: `Se han restado **${minutes} minutos** a <@${userId}>.`,
                 ephemeral: true
             });
         }

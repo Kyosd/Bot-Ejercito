@@ -1,28 +1,43 @@
 // events/ready.js
+"use strict";
+
 const { Routes, REST } = require("discord.js");
-require("dotenv").config();
+const config = require("../core/config");
 
-module.exports = async (bot) => {
-    console.log(`Ejercito Nacional ON ${bot.client.user.tag}`);
+module.exports = {
+    name: "ready",
 
-    // Registrar UI de horas
-    if (bot.modules.hours?.deployUI) {
-        bot.modules.hours.deployUI(bot);
-    }
+    async execute(bot) {
+        console.log(`Ejercito Nacional ON ${bot.client.user.tag}`);
 
-    // Registrar slash commands
-    const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
+        // UI del módulo HOURS (si existe)
+        if (bot.modules.hours?.deployUI) {
+            try {
+                bot.modules.hours.deployUI(bot);
+            } catch (err) {
+                console.error("[ERROR] deployUI hours:", err);
+            }
+        }
 
-    const commands = bot.client.commands.map(cmd => cmd.data.toJSON());
+        // Si no hay comandos, no intentes registrar nada
+        const commandsArray = Array.from(bot.client.commands.values());
+        if (!commandsArray.length) {
+            console.log("[SLASH] No hay comandos para registrar.");
+            return;
+        }
 
-    try {
-        await rest.put(
-            Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-            { body: commands }
-        );
+        const rest = new REST({ version: "10" }).setToken(config.token);
+        const body = commandsArray.map(cmd => cmd.data.toJSON());
 
-        console.log(`[SLASH] ${commands.length} comandos registrados correctamente.`);
-    } catch (err) {
-        console.error("[SLASH ERROR]", err);
+        try {
+            await rest.put(
+                Routes.applicationGuildCommands(config.clientId, config.guildId),
+                { body }
+            );
+
+            console.log(`[SLASH] ${body.length} comandos registrados correctamente.`);
+        } catch (err) {
+            console.error("[SLASH ERROR]", err);
+        }
     }
 };

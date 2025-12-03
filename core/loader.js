@@ -1,96 +1,110 @@
 // core/loader.js
-const fs = require("fs");
+const fs   = require("fs");
 const path = require("path");
-const { Collection } = require("discord.js");
+const moduleConfig = require("./config.modules");
 
 class Loader {
 
-    // ========================
-    // EVENTOS GLOBALES
-    // ========================
+    // ============================
+    // Eventos globales (/events)
+    // ============================
     static registerEvents(bot) {
         const eventsPath = path.join(__dirname, "../events");
-        const files = fs.readdirSync(eventsPath);
 
-        for (const file of files) {
-            const eventName = file.replace(".js", "");
-            const handler = require(path.join(eventsPath, file));
+        for (const file of fs.readdirSync(eventsPath)) {
+            if (!file.endsWith(".js")) continue;
 
-            bot.client.on(eventName, (...args) =>
-                handler(bot, ...args)
-            );
+            const event = require(path.join(eventsPath, file));
+
+            if (!event?.name || typeof event.execute !== "function") {
+                console.warn(`[EVENT] archivo inválido: ${file}`);
+                continue;
+            }
+
+            bot.client.on(event.name, (...args) => event.execute(bot, ...args));
+            console.log(`[EVENT] Cargado (obj): ${event.name}`);
         }
     }
 
-    // ========================
-    // MÓDULOS
-    // ========================
+    // ============================
+    // Módulos (/modules)
+    // ============================
     static registerModules(bot) {
-        bot.modules = {};
-        if (!bot.client.commands) bot.client.commands = new Collection();
-
         const modulesPath = path.join(__dirname, "../modules");
-        const folders = fs.readdirSync(modulesPath);
+
+        const folders = fs.readdirSync(modulesPath)
+            .filter(name => moduleConfig.enabledModules.includes(name));
+
+        bot.modules = {};
+        bot.client.commands ??= new Map();
 
         for (const folder of folders) {
-            const indexPath = path.join(modulesPath, folder, "index.js");
-            if (!fs.existsSync(indexPath)) continue;
+            const moduleDir = path.join(modulesPath, folder);
+            const indexPath = path.join(moduleDir, "index.js");
 
-            const mod = require(indexPath);
-            bot.modules[mod.name] = mod;
+            if (!fs.existsSync(indexPath)) {
+                console.warn(`[LOADER] Módulo "${folder}" ignorado: no tiene index.js`);
+                continue;
+            }
 
-            // ------------------------
-            // 1) COMANDOS
-            // ------------------------
-            if (mod.commands && Array.isArray(mod.commands)) {
-                for (let item of mod.commands) {
+            const moduleObj = require(indexPath);
+            bot.modules[moduleObj.name ?? folder] = moduleObj;
 
-                    if (typeof item === "string") item = require(item);
+            console.log(`[MODULE] Cargado módulo: ${moduleObj.name ?? folder}`);
 
-                    const command = item;
+            // config.js del módulo (opcional)
+            const configPath = path.join(moduleDir, "config.js");
+            if (fs.existsSync(configPath)) {
+                moduleObj.config = require(configPath);
+                console.log(`[CONFIG] Cargada config de ${moduleObj.name}`);
+            }
 
-                    if (!command?.data?.name || typeof command.execute !== "function") {
-                        console.warn(`[WARN] Comando inválido en módulo ${mod.name}`);
+            // comandos del módulo (opcional)
+            const commandsPath = path.join(moduleDir, "commands");
+            if (fs.existsSync(commandsPath)) {
+                for (const file of fs.readdirSync(commandsPath)) {
+                    if (!file.endsWith(".js")) continue;
+
+                    const command = require(path.join(commandsPath, file));
+
+                    if (!command?.data?.name) {
+                        console.warn(`[WARN] Comando inválido en módulo ${folder}: ${file}`);
                         continue;
                     }
 
                     bot.client.commands.set(command.data.name, command);
-                    console.log(`[COMMAND] Registrado: ${command.data.name} (${mod.name})`);
+                    console.log(`[COMMAND] Registrado: ${command.data.name}`);
                 }
             }
 
-            // ------------------------
-            // 2) EVENTOS DE MÓDULO
-            // ------------------------
-            if (mod.events && Array.isArray(mod.events)) {
-                for (let item of mod.events) {
+            // eventos del módulo (opcional)
+            const eventsPath = path.join(moduleDir, "events");
+            if (fs.existsSync(eventsPath)) {
+                for (const file of fs.readdirSync(eventsPath)) {
+                    if (!file.endsWith(".js")) continue;
 
-                    if (typeof item === "string") item = require(item);
-
-                    const event = item;
+                    const event = require(path.join(eventsPath, file));
 
                     if (!event?.name || typeof event.execute !== "function") {
-                        console.warn(`[WARN] Evento inválido en módulo ${mod.name}`);
+                        console.warn(`[WARN] Evento inválido en módulo ${folder}: ${file}`);
                         continue;
                     }
 
-                    // FIX REAL: SOLO ENVIAR (bot, interaction)
                     bot.client.on(event.name, (...args) =>
                         event.execute(bot, ...args)
                     );
 
-                    console.log(`[EVENT] Registrado event: ${event.name} (${mod.name})`);
+                    console.log(`[EVENT] Registrado evento: ${event.name} (${folder})`);
                 }
             }
 
-            // ------------------------
-            // 3) onLoad()
-            // ------------------------
-            if (typeof mod.onLoad === "function") {
+            // hook onLoad del módulo
+            if (typeof moduleObj.onLoad === "function") {
                 try {
-                    mod.onLoad(bot);
+                    moduleObj.onLoad(bot);
+                    console.log(`[LOAD] Ejecutado onLoad() en ${folder}`);
                 } catch (err) {
-                    console.error(`[ERROR] en onLoad() del módulo ${mod.name}:`, err);
+                    console.error(`[ERROR] onLoad() en módulo ${folder}:`, err);
                 }
             }
         }

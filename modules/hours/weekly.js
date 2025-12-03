@@ -1,38 +1,37 @@
+"use strict";
+
 const { EmbedBuilder } = require("discord.js");
-const config = require("../../core/config");
+const config = require("./config");
+const logs   = require("./logs");
 
 module.exports = {
 
-    // -------------------------------
-    //  Asegura meta y calcula último domingo 06:00
-    // -------------------------------
     async ensureMeta(bot) {
         await bot.db.run(`
             CREATE TABLE IF NOT EXISTS hours_meta (
-                key TEXT PRIMARY KEY,
+                key   TEXT PRIMARY KEY,
                 value TEXT
-            );
+            )
         `);
 
-        // Intentar leer meta existente
         const row = await bot.db.get(
             "SELECT value FROM hours_meta WHERE key = 'weekly_reset_at'"
         );
 
-        if (row) {
-            return parseInt(row.value, 10);
-        }
+        if (row) return Number(row.value);
 
-        // Calcular último domingo 06:00
         const now = new Date();
-        const today = now.getDay(); // 0 = domingo
-        const daysBack = today;     // días hasta el último domingo
+        const day = now.getDay(); // 0 = domingo
+        const diff = day;
 
         const lastSunday = new Date(
             now.getFullYear(),
             now.getMonth(),
-            now.getDate() - daysBack,
-            6, 0, 0, 0 // domingo 06:00
+            now.getDate() - diff,
+            config.settings.weeklyResetHour,
+            config.settings.weeklyResetMinute,
+            0,
+            0
         );
 
         const resetAt = lastSunday.getTime();
@@ -45,36 +44,25 @@ module.exports = {
         return resetAt;
     },
 
-
-    // -------------------------------
-    //  Setear manualmente reset horario (usado por reporte automático)
-    // -------------------------------
     async setWeeklyResetNow(bot) {
         const now = Date.now();
-        await bot.db.run(
-            `
+
+        await bot.db.run(`
             INSERT INTO hours_meta (key, value)
             VALUES ('weekly_reset_at', ?)
             ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            `,
-            [now]
-        );
+        `, [now]);
     },
 
-
-    // -------------------------------
-    //  Obtener minutos semanales por usuario
-    // -------------------------------
     async getUserWeeklyMinutes(bot, userId) {
-        let resetAt = await this.ensureMeta(bot);
-        resetAt = Number(resetAt);
+        const resetAt = await this.ensureMeta(bot);
 
         const row = await bot.db.get(
             `
             SELECT SUM(duration) AS total
             FROM hours_sessions
             WHERE user_id = ?
-            AND start >= ?
+              AND start >= ?
             `,
             [userId, resetAt]
         );
@@ -82,15 +70,9 @@ module.exports = {
         return row?.total || 0;
     },
 
-
-    // -------------------------------
-    //  Generar reporte semanal
-    // -------------------------------
     async generate(bot, auto = false, interaction = null, privateForGeneral = false) {
-        let resetAt = await this.ensureMeta(bot);
-        resetAt = Number(resetAt);
+        const resetAt = await this.ensureMeta(bot);
 
-        // Obtener usuarios y sus minutos semanales
         const rows = await bot.db.all(
             `
             SELECT user_id, SUM(duration) AS total
@@ -112,7 +94,6 @@ module.exports = {
             return;
         }
 
-        
         let desc = "";
         let rank = 1;
 
@@ -123,25 +104,22 @@ module.exports = {
             rank++;
         }
 
-        
         const embed = new EmbedBuilder()
-            .setColor(config.hours.embedColor)
-            .setTitle(`📘 Reporte Semanal — ${config.style.systemName}`)
+            .setColor(config.colors.embed)
+            .setTitle(`📘 Reporte Semanal — ${config.system.name}`)
             .setDescription(
                 "Resumen de horas de servicio desde el último reinicio semanal.\n\n" +
                 desc
             )
-            .setFooter({ text: config.style.footer })
+            .setFooter({ text: config.system.footer })
             .setTimestamp(Date.now());
 
-        // -------------------------------
-        // AUTOMÁTICO (domingo 06:00)
-        // -------------------------------
+        // Automático (scheduler)
         if (auto) {
             const guild = await bot.client.guilds.fetch(config.guildId).catch(() => null);
             if (!guild) return;
 
-            const channelId = config.channels.hoursReport;
+            const channelId = config.channels.report;
             if (!channelId) return;
 
             const channel = await guild.channels.fetch(channelId).catch(() => null);
@@ -149,28 +127,29 @@ module.exports = {
 
             await channel.send({ embeds: [embed] });
 
-            // Resetear semana
             await this.setWeeklyResetNow(bot);
-
+            await logs.weeklyReport(bot, true, null);
             return;
         }
 
-        // -------------------------------
-        // MANUAL (para generales)
-        // -------------------------------
+        // Manual para generales
         if (interaction && privateForGeneral) {
-            return interaction.reply({
+            await interaction.reply({
                 embeds: [embed],
                 ephemeral: true
             });
+            await logs.weeklyReport(bot, false, interaction.user);
+            return;
         }
 
-        // MANUAL pero público (no usado normalmente)
+        // Manual público
         if (interaction && !privateForGeneral) {
-            return interaction.reply({
+            await interaction.reply({
                 embeds: [embed],
                 ephemeral: false
             });
+            await logs.weeklyReport(bot, false, interaction.user);
+            return;
         }
     }
 };

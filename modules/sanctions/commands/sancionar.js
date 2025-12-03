@@ -1,3 +1,4 @@
+// modules/sanctions/commands/sancionar.js
 const {
     SlashCommandBuilder,
     ActionRowBuilder,
@@ -28,28 +29,23 @@ module.exports = {
                 .setRequired(false)
         ),
 
-    // AHORA la firma es correcta para tu loader: execute(bot, interaction)
     async execute(bot, interaction) {
+        const mod = bot.modules.sanctions;
+        const cfg = mod.config;
 
-        const general = interaction.user;
+        const generalMember = interaction.member;
 
         // ============================
         // VALIDACIÓN DE PERMISOS
         // ============================
-        const generals = process.env.ROLE_GENERALES
-            ? process.env.ROLE_GENERALES.split(",").map(x => x.trim())
-            : [];
+        const isGeneral =
+            cfg.generals.includes(generalMember.id) ||
+            generalMember.roles.cache.some(r => cfg.generals.includes(r.id));
 
-        const member = interaction.member;
-
-        const esGeneral =
-            generals.includes(member.id) || // usuario listado
-            member.roles.cache.some(r => generals.includes(r.id)); // rol listado
-
-        if (!esGeneral) {
+        if (!isGeneral) {
             return interaction.reply({
                 content: "No tienes permiso para usar este comando.",
-                flags: 64 // replacement for ephemeral
+                ephemeral: true
             });
         }
 
@@ -58,11 +54,13 @@ module.exports = {
         // ============================
         const target = interaction.options.getUser("soldado");
         const reason = interaction.options.getString("razon");
-        const evidence = interaction.options.getString("pruebas") || "No proporcionadas";
+        const evidence =
+            interaction.options.getString("pruebas") || "No proporcionadas";
 
         const soldierId = target.id;
         const soldierTag = `<@${soldierId}>`;
-        const generalTag = `<@${general.id}>`;
+        const generalId = generalMember.id;
+        const generalTag = `<@${generalId}>`;
 
         // ============================
         // OBTENER Y ACTUALIZAR WARNINGS
@@ -76,7 +74,7 @@ module.exports = {
             reason,
             evidence,
             warning_number: newWarning,
-            issued_by: general.id,
+            issued_by: generalId,
             issued_by_tag: generalTag,
             timestamp: Date.now()
         });
@@ -84,12 +82,14 @@ module.exports = {
         await service.updateWarnings(bot, soldierId, soldierTag, newWarning);
 
         // ============================
-        // ENVIAR AL CANAL DE SANCIONES
+        // ENVIAR FORMATO AL CANAL
         // ============================
-        const sanctionsChannel = bot.client.channels.cache.get(process.env.SANCTIONS_CHANNEL);
+        if (cfg.sanctionsChannel) {
+            const sanctionsChannel =
+                bot.client.channels.cache.get(cfg.sanctionsChannel);
 
-        if (sanctionsChannel) {
-            sanctionsChannel.send(
+            if (sanctionsChannel) {
+                await sanctionsChannel.send(
 `📄 **FORMATO DE SANCIONES**
 
 👤 **Nombre del agente:** ${soldierTag}
@@ -99,29 +99,45 @@ module.exports = {
 🎖️ **Emitido por:** ${generalTag}
 📅 **Fecha:** <t:${Math.floor(Date.now() / 1000)}:F>
 `
-            );
+                );
+            }
         }
 
         // ============================
-        // LOG DEL SISTEMA (corregido)
+        // LOG DEL SISTEMA
         // ============================
         await logSanction(
-            bot,                                  // << ESTE ES EL FIX
+            bot,
             "sanción_creada",
-            general.id,
+            generalId,
             soldierId,
             `Advertencia ${newWarning}/3 — ${reason}`
         );
 
         // ============================
-        // PANEL DE GESTIÓN (con botones)
+        // PANEL DE GESTIÓN
         // ============================
         const buttons = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`san_view_${soldierId}`).setLabel("Ver advertencias").setStyle(1),
-            new ButtonBuilder().setCustomId(`confirm_delete_last_${soldierId}`).setLabel("Eliminar última").setStyle(2),
-            new ButtonBuilder().setCustomId(`confirm_delete_one_${soldierId}`).setLabel("Eliminar 1 ADV").setStyle(2),
-            new ButtonBuilder().setCustomId(`confirm_reset_${soldierId}`).setLabel("Resetear todas").setStyle(4),
-            new ButtonBuilder().setCustomId("san_close").setLabel("Cerrar").setStyle(4)
+            new ButtonBuilder()
+                .setCustomId(`san_view_${soldierId}`)
+                .setLabel("Ver advertencias")
+                .setStyle(1),
+            new ButtonBuilder()
+                .setCustomId(`confirm_delete_last_${soldierId}`)
+                .setLabel("Eliminar última")
+                .setStyle(2),
+            new ButtonBuilder()
+                .setCustomId(`confirm_delete_one_${soldierId}`)
+                .setLabel("Eliminar 1 ADV")
+                .setStyle(2),
+            new ButtonBuilder()
+                .setCustomId(`confirm_reset_${soldierId}`)
+                .setLabel("Resetear todas")
+                .setStyle(4),
+            new ButtonBuilder()
+                .setCustomId("san_close")
+                .setLabel("Cerrar")
+                .setStyle(4)
         );
 
         const menu = new ActionRowBuilder().addComponents(
@@ -139,7 +155,7 @@ module.exports = {
         return interaction.reply({
             content: `Panel de gestión para ${soldierTag}`,
             components: [buttons, menu],
-            flags: 64 // reemplazo moderno de ephemeral
+            ephemeral: true
         });
     }
 };

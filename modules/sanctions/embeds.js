@@ -1,28 +1,33 @@
+// modules/sanctions/embeds.js
 const { EmbedBuilder } = require("discord.js");
-const config = require("../../core/config");
+const cfg = require("./config");
 
 module.exports = {
-
     warningsEmbed(soldierTag, warnings) {
         return new EmbedBuilder()
-            .setColor("#ffaa00")
-            .setTitle(`Advertencias activas`)
-            .setDescription(`Soldado: ${soldierTag}\n⚠️ **${warnings}/3 advertencias activas**`)
+            .setColor(cfg.colors.warning)
+            .setTitle("Advertencias activas")
+            .setDescription(
+                `Soldado: ${soldierTag}\n⚠️ **${warnings}/3 advertencias activas**`
+            )
             .setTimestamp();
     },
 
     listEmbed(list) {
         const embed = new EmbedBuilder()
-            .setColor("#ffaa00")
+            .setColor(cfg.colors.warning)
             .setTitle("Lista de sancionados");
 
-        if (list.length === 0) {
+        if (!list.length) {
             embed.setDescription("No hay sancionados actualmente.");
             return embed;
         }
 
         const txt = list
-            .map((x, i) => `${i + 1}. <@${x.soldier_id}> — **${x.warnings}/3**`)
+            .map(
+                (x, i) =>
+                    `${i + 1}. <@${x.soldier_id}> — **${x.warnings}/3** advertencias`
+            )
             .join("\n");
 
         embed.setDescription(txt);
@@ -31,10 +36,10 @@ module.exports = {
 
     historyEmbed(soldierTag, history) {
         const embed = new EmbedBuilder()
-            .setColor("#ffaa00")
+            .setColor(cfg.colors.warning)
             .setTitle(`Historial de sanciones — ${soldierTag}`);
 
-        if (history.length === 0) {
+        if (!history.length) {
             embed.setDescription("Este soldado no tiene sanciones registradas.");
             return embed;
         }
