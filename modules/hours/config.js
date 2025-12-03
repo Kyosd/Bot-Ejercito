@@ -2,24 +2,27 @@
 
 module.exports = {
     // Servidor donde opera el sistema de horas
-    guildId: "1202399115393114133",
+    guildId: "1359765875636310058",
 
     // IDs de usuarios o roles con permisos de general
     generals: [
-         "434520425288957956",
-        // "ID_USUARIO_O_ROL_2"
+         "1398131944872480890"
+         ,"1420882354775527484",
+         "1392985835355508766",
+         "1392985835355508766"
+        
     ],
 
     // Canales usados por el módulo de horas
     channels: {
         // Panel principal (entrar/salir + botón Panel de Generales)
-        principal: "1442198055368786120",
+        principal: "1398132225223950469",
 
         // Canal para reporte semanal automático
-        report: "1442198095759806525",
+        report: "1443688275608080394",
 
         // Canal de logs internos del sistema de horas
-        logs: "1400807216822620251"
+        logs: "1416997231499935875"
     },
 
     // Identidad del sistema

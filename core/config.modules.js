@@ -1,8 +1,8 @@
 module.exports = {
     enabledModules: [
         "hours",
-        //"sanctions",
-        //"sendCenter"
+        "sanctions",
+        "sendCenter"
         // Agrega/quita módulos aquí
     ]
 };

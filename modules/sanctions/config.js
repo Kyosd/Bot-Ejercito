@@ -7,7 +7,10 @@ module.exports = {
     // (IDs de usuarios o roles)
     // ===============================================
     generals: [ 
-        "434520425288957956"
+        "1398131944872480890"
+         ,"1420882354775527484",
+         "1392985835355508766",
+         "1392985835355508766",
 
 
         // EJEMPLOS:
@@ -18,8 +21,8 @@ module.exports = {
     // ===============================================
     // CANALES DEL SISTEMA DE SANCIONES
     // ===============================================
-    sanctionsChannel: "1442198055368786120",       // Canal donde se publican las sanciones
-    logsChannel: "1442198095759806525",            // Canal donde se envían los logs internos
+    sanctionsChannel: "1398132210346889236",       // Canal donde se publican las sanciones
+    logsChannel: "1444087102701834280",            // Canal donde se envían los logs internos
 
     /*
         EJEMPLO:
