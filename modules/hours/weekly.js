@@ -5,151 +5,160 @@ const config = require("./config");
 const logs   = require("./logs");
 
 module.exports = {
+  async ensureMeta(bot) {
+    await bot.db.run(`
+      CREATE TABLE IF NOT EXISTS hours_meta (
+        key   TEXT PRIMARY KEY,
+        value TEXT
+      )
+    `);
 
-    async ensureMeta(bot) {
-        await bot.db.run(`
-            CREATE TABLE IF NOT EXISTS hours_meta (
-                key   TEXT PRIMARY KEY,
-                value TEXT
-            )
-        `);
+    const row = await bot.db.get(
+      "SELECT value FROM hours_meta WHERE key = 'weekly_reset_at'"
+    );
 
-        const row = await bot.db.get(
-            "SELECT value FROM hours_meta WHERE key = 'weekly_reset_at'"
-        );
+    if (row) return Number(row.value);
 
-        if (row) return Number(row.value);
+    const now = new Date();
+    const day = now.getDay(); // 0 domingo
+    const diff = day;
 
-        const now = new Date();
-        const day = now.getDay(); // 0 = domingo
-        const diff = day;
+    const lastSunday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - diff,
+      config.settings.weeklyResetHour,
+      config.settings.weeklyResetMinute,
+      0, 0
+    );
 
-        const lastSunday = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate() - diff,
-            config.settings.weeklyResetHour,
-            config.settings.weeklyResetMinute,
-            0,
-            0
-        );
+    const resetAt = lastSunday.getTime();
 
-        const resetAt = lastSunday.getTime();
+    await bot.db.run(
+      "INSERT INTO hours_meta (key, value) VALUES ('weekly_reset_at', ?)",
+      [resetAt]
+    );
 
-        await bot.db.run(
-            "INSERT INTO hours_meta (key, value) VALUES ('weekly_reset_at', ?)",
-            [resetAt]
-        );
+    return resetAt;
+  },
 
-        return resetAt;
-    },
+  async setWeeklyResetNow(bot) {
+    const now = Date.now();
 
-    async setWeeklyResetNow(bot) {
-        const now = Date.now();
+    await bot.db.run(`
+      INSERT INTO hours_meta (key, value)
+      VALUES ('weekly_reset_at', ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `, [now]);
+  },
 
-        await bot.db.run(`
-            INSERT INTO hours_meta (key, value)
-            VALUES ('weekly_reset_at', ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-        `, [now]);
-    },
+  // ✅ evita ejecutar 2 veces en el mismo minuto (si el scheduler se duplica)
+  async _setLastAutoRunMinute(bot, minuteKey) {
+    await bot.db.run(`
+      INSERT INTO hours_meta (key, value)
+      VALUES ('weekly_last_auto_run', ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `, [minuteKey]);
+  },
 
-    async getUserWeeklyMinutes(bot, userId) {
-        const resetAt = await this.ensureMeta(bot);
+  async _getLastAutoRunMinute(bot) {
+    const row = await bot.db.get("SELECT value FROM hours_meta WHERE key = 'weekly_last_auto_run'");
+    return row?.value ?? null;
+  },
 
-        const row = await bot.db.get(
-            `
-            SELECT SUM(duration) AS total
-            FROM hours_sessions
-            WHERE user_id = ?
-              AND start >= ?
-            `,
-            [userId, resetAt]
-        );
+  async getUserWeeklyMinutes(bot, userId) {
+    const resetAt = await this.ensureMeta(bot);
 
-        return row?.total || 0;
-    },
+    const row = await bot.db.get(
+      `
+      SELECT SUM(duration) AS total
+      FROM hours_sessions
+      WHERE user_id = ?
+        AND start >= ?
+      `,
+      [userId, resetAt]
+    );
 
-    async generate(bot, auto = false, interaction = null, privateForGeneral = false) {
-        const resetAt = await this.ensureMeta(bot);
+    return row?.total || 0;
+  },
 
-        const rows = await bot.db.all(
-            `
-            SELECT user_id, SUM(duration) AS total
-            FROM hours_sessions
-            WHERE start >= ?
-            GROUP BY user_id
-            ORDER BY total DESC
-            `,
-            [resetAt]
-        );
+  async generate(bot, auto = false, interaction = null, privateForGeneral = false) {
+    const resetAt = await this.ensureMeta(bot);
 
-        if (!rows.length) {
-            if (interaction) {
-                return interaction.reply({
-                    content: "No se han registrado horas desde el último reinicio semanal.",
-                    ephemeral: true
-                });
-            }
-            return;
-        }
+    const rows = await bot.db.all(
+      `
+      SELECT user_id, SUM(duration) AS total
+      FROM hours_sessions
+      WHERE start >= ?
+      GROUP BY user_id
+      ORDER BY total DESC
+      `,
+      [resetAt]
+    );
 
-        let desc = "";
-        let rank = 1;
-
-        for (const r of rows) {
-            const h = Math.floor(r.total / 60);
-            const m = r.total % 60;
-            desc += `**${rank}. <@${r.user_id}> — ${h}h ${m}m**\n`;
-            rank++;
-        }
-
-        const embed = new EmbedBuilder()
-            .setColor(config.colors.embed)
-            .setTitle(`📘 Reporte Semanal — ${config.system.name}`)
-            .setDescription(
-                "Resumen de horas de servicio desde el último reinicio semanal.\n\n" +
-                desc
-            )
-            .setFooter({ text: config.system.footer })
-            .setTimestamp(Date.now());
-
-        // Automático (scheduler)
-        if (auto) {
-            const guild = await bot.client.guilds.fetch(config.guildId).catch(() => null);
-            if (!guild) return;
-
-            const channelId = config.channels.report;
-            if (!channelId) return;
-
-            const channel = await guild.channels.fetch(channelId).catch(() => null);
-            if (!channel) return;
-
-            await channel.send({ embeds: [embed] });
-
-            await this.setWeeklyResetNow(bot);
-            await logs.weeklyReport(bot, true, null);
-            return;
-        }
-
-        // Manual para generales
-        if (interaction && privateForGeneral) {
-            await interaction.reply({
-                embeds: [embed],
-                ephemeral: true
-            });
-            await logs.weeklyReport(bot, false, interaction.user);
-            return;
-        }
-
-        // Manual público
-        if (interaction && !privateForGeneral) {
-            await interaction.reply({
-                embeds: [embed],
-                ephemeral: false
-            });
-            await logs.weeklyReport(bot, false, interaction.user);
-            return;
-        }
+    if (!rows.length) {
+      if (interaction) {
+        return interaction.reply({
+          content: "No se han registrado horas desde el último reinicio semanal.",
+          ephemeral: true
+        });
+      }
+      return;
     }
+
+    let desc = "";
+    let rank = 1;
+
+    for (const r of rows) {
+      const h = Math.floor(r.total / 60);
+      const m = r.total % 60;
+      desc += `**${rank}. <@${r.user_id}> — ${h}h ${m}m**\n`;
+      rank++;
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(config.colors.embed)
+      .setTitle(`📘 Reporte Semanal — ${config.system.name}`)
+      .setDescription("Resumen de horas desde el último reinicio semanal.\n\n" + desc)
+      .setFooter({ text: config.system.footer })
+      .setTimestamp(Date.now());
+
+    // Automático
+    if (auto) {
+      // anti doble run por minuto
+      const now = new Date();
+      const minuteKey = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()} ${now.getHours()}:${now.getMinutes()}`;
+      const last = await this._getLastAutoRunMinute(bot);
+      if (last === minuteKey) return; // ya corrió
+
+      const guild = await bot.client.guilds.fetch(config.guildId).catch(() => null);
+      if (!guild) return;
+
+      const channelId = config.channels.report;
+      if (!channelId) return;
+
+      const channel = await guild.channels.fetch(channelId).catch(() => null);
+      if (!channel) return;
+
+      await channel.send({ embeds: [embed] });
+
+      await this.setWeeklyResetNow(bot);
+      await this._setLastAutoRunMinute(bot, minuteKey);
+      await logs.weeklyReport(bot, true, null);
+      return;
+    }
+
+    // Manual (privado general)
+    if (interaction && privateForGeneral) {
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await logs.weeklyReport(bot, false, interaction.user);
+      return;
+    }
+
+    // Manual público
+    if (interaction && !privateForGeneral) {
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      await logs.weeklyReport(bot, false, interaction.user);
+    }
+  }
 };
