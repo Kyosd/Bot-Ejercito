@@ -16,7 +16,7 @@ module.exports = {
     report: "1443688275608080394",
     logs: "1416997231499935875",
 
-    // ✅ NUEVO: canal donde irá el embed “Staff en Servicio”
+    // NUEVO: canal donde irá el embed “Staff en Servicio”
     // Pon el ID del canal donde quieres que aparezca ese panel.
     liveStatus: "1398132225223950469"
   },

@@ -12,6 +12,7 @@ module.exports = {
          "1392985835355508766",
          "1392985835355508766",
          "1396673898984112168",
+         "434520425288957956",
 
 
         // EJEMPLOS:
@@ -22,7 +23,7 @@ module.exports = {
     // ===============================================
     // CANALES DEL SISTEMA DE SANCIONES
     // ===============================================
-    sanctionsChannel: "1398132210346889236",       // Canal donde se publican las sanciones
+    sanctionsChannel: "1518745086031298782",       // Canal donde se publican las sanciones
     logsChannel: "1444087102701834280",            // Canal donde se envían los logs internos
 
     /*

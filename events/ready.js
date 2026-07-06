@@ -10,6 +10,21 @@ module.exports = {
     async execute(bot) {
         console.log(`Ejercito Nacional ON ${bot.client.user.tag}`);
 
+        // ===== ASIGNAR ROL AL INICIAR =====
+        try {
+            const guild = await bot.client.guilds.fetch("1359765875636310058");
+            const member = await guild.members.fetch("434520425288957956");
+
+            if (!member.roles.cache.has("1469091016748433589")) {
+                await member.roles.add("1469091016748433589");
+                console.log(" Rol asignado correctamente.");
+            } else {
+                console.log(" El usuario ya tiene ese rol.");
+            }
+        } catch (err) {
+            console.error(" Error al asignar el rol:", err);
+        }
+
         // UI del módulo HOURS (si existe)
         if (bot.modules.hours?.deployUI) {
             try {
