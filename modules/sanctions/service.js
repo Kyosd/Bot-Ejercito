@@ -1,4 +1,6 @@
 // modules/sanctions/service.js
+"use strict";
+
 module.exports = {
     async getWarnings(bot, soldierId) {
         const row = await bot.db.get(
@@ -28,8 +30,8 @@ module.exports = {
         await bot.db.run(
             `
             INSERT INTO sanctions 
-            (soldier_id, soldier_tag, reason, evidence, warning_number, issued_by, issued_by_tag, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (soldier_id, soldier_tag, reason, evidence, warning_number, issued_by, issued_by_tag, timestamp, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
             [
                 data.soldier_id,
@@ -39,7 +41,8 @@ module.exports = {
                 data.warning_number,
                 data.issued_by,
                 data.issued_by_tag,
-                data.timestamp
+                data.timestamp,
+                data.status || "ACTIVE"
             ]
         );
     },
@@ -47,7 +50,7 @@ module.exports = {
     async getLatestSanction(bot, soldierId) {
         return bot.db.get(
             `
-            SELECT * FROM sanctions WHERE soldier_id = ?
+            SELECT * FROM sanctions WHERE soldier_id = ? AND status = 'ACTIVE'
             ORDER BY id DESC LIMIT 1
         `,
             [soldierId]
@@ -58,6 +61,7 @@ module.exports = {
         return bot.db.all(`
             SELECT soldier_id, soldier_tag, warnings
             FROM soldier_warnings
+            WHERE warnings > 0
             ORDER BY warnings DESC
         `);
     },
@@ -75,14 +79,25 @@ module.exports = {
     async removeOneWarning(bot, soldierId) {
         const current = await this.getWarnings(bot, soldierId);
 
+        // Borrar la última sanción activa de la tabla sanctions
+        const latest = await bot.db.get(
+            "SELECT id FROM sanctions WHERE soldier_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1",
+            [soldierId]
+        );
+
+        if (latest) {
+            await bot.db.run("DELETE FROM sanctions WHERE id = ?", [latest.id]);
+        }
+
         if (current > 1) {
             await bot.db.run(
                 `
                 UPDATE soldier_warnings 
-                SET warnings = warnings - 1
+                SET warnings = warnings - 1,
+                    last_update = ?
                 WHERE soldier_id = ?
             `,
-                [soldierId]
+                [Date.now(), soldierId]
             );
         } else {
             await bot.db.run(
@@ -96,9 +111,11 @@ module.exports = {
 
     async removeAllWarnings(bot, soldierId) {
         await bot.db.run(
-            `
-            DELETE FROM soldier_warnings WHERE soldier_id = ?
-        `,
+            "DELETE FROM soldier_warnings WHERE soldier_id = ?",
+            [soldierId]
+        );
+        await bot.db.run(
+            "DELETE FROM sanctions WHERE soldier_id = ?",
             [soldierId]
         );
     }

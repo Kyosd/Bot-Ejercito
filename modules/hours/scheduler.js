@@ -1,5 +1,49 @@
 "use strict";
 
+const { AttachmentBuilder } = require("discord.js");
+const coreConfig = require("../../core/config");
+
+async function sendAutoBackup(bot) {
+  try {
+    const channelId = coreConfig.channels.auditBackup || coreConfig.channels.logs;
+    if (!channelId) return;
+
+    const guild = await bot.client.guilds.fetch(coreConfig.guildId).catch(() => null);
+    if (!guild) return;
+
+    const channel = await guild.channels.fetch(channelId).catch(() => null);
+    if (!channel || !channel.isTextBased()) return;
+
+    const db = bot.db;
+    const backupData = {
+      version: "2.0.0",
+      type: "AUTOMATED_WEEKLY_BACKUP",
+      timestamp: new Date().toISOString(),
+      engine: db.type,
+      data: {
+        hours_active: await db.all("SELECT * FROM hours_active"),
+        hours_sessions: await db.all("SELECT * FROM hours_sessions"),
+        hours_blocked: await db.all("SELECT * FROM hours_blocked"),
+        sanctions: await db.all("SELECT * FROM sanctions"),
+        soldier_warnings: await db.all("SELECT * FROM soldier_warnings"),
+        soldier_profiles: await db.all("SELECT * FROM soldier_profiles")
+      }
+    };
+
+    const attachment = new AttachmentBuilder(
+      Buffer.from(JSON.stringify(backupData, null, 2), "utf-8"),
+      { name: `auto_backup_${Date.now()}.json` }
+    );
+
+    await channel.send({
+      content: "💾 **Copia de seguridad automática semanal generada previo al reinicio:**",
+      files: [attachment]
+    });
+  } catch (err) {
+    console.error("[scheduler backup] Error enviando backup automático:", err);
+  }
+}
+
 module.exports = {
   start(bot) {
     const hours = bot.modules?.hours;
@@ -8,14 +52,13 @@ module.exports = {
       return;
     }
 
-    // ✅ evita duplicados
     if (hours._weeklyInterval) {
       clearInterval(hours._weeklyInterval);
       hours._weeklyInterval = null;
     }
 
     const cfg = hours.config.settings;
-    console.log("[hours scheduler] Iniciado sistema de reporte semanal...");
+    console.log("[hours scheduler] Iniciado sistema de reporte y backup semanal...");
 
     hours._weeklyInterval = setInterval(async () => {
       const mod = bot.modules?.hours;
@@ -30,7 +73,8 @@ module.exports = {
       if (!match) return;
 
       try {
-        console.log("[hours scheduler] Ejecutando reporte semanal automático...");
+        console.log("[hours scheduler] Ejecutando reporte semanal automático y backup...");
+        await sendAutoBackup(bot);
         await mod.weeklyReport(bot, true);
       } catch (err) {
         console.error("[hours scheduler] Error en reporte semanal:", err);

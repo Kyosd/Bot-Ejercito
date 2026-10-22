@@ -7,9 +7,11 @@ function toInt(n, fallback = 0) {
 
 function minutesToHM(minutes) {
   minutes = Math.trunc(toInt(minutes, 0));
-  const h = Math.floor(Math.abs(minutes) / 60);
-  const m = Math.abs(minutes) % 60;
-  return { h, m };
+  const isNegative = minutes < 0;
+  const abs = Math.abs(minutes);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return { h, m, isNegative, text: `${isNegative ? "-" : ""}${h}h ${m}m` };
 }
 
 function ts(ms, style = "F") {

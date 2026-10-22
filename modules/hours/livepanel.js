@@ -5,7 +5,7 @@ const config = require("./config");
 const { rel, ts } = require("./utils");
 
 async function ensureMetaTable(db) {
-  await db.run(`CREATE TABLE IF NOT EXISTS hours_meta (key TEXT PRIMARY KEY, value TEXT)`);
+  await db.run("CREATE TABLE IF NOT EXISTS hours_meta (key TEXT PRIMARY KEY, value TEXT)");
 }
 
 async function getMeta(db, key) {
@@ -15,7 +15,7 @@ async function getMeta(db, key) {
 
 async function setMeta(db, key, value) {
   await db.run(
-    "INSERT INTO hours_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+    "INSERT INTO hours_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
     [key, String(value)]
   );
 }
@@ -54,7 +54,7 @@ module.exports = {
     if (this._interval) clearInterval(this._interval);
     this._interval = setInterval(() => this.update(bot), seconds * 1000);
 
-    console.log(`[hours livePanel] Iniciado (refresh ${seconds}s).`);
+    console.log(`[hours livePanel] Iniciado (refresh cada ${seconds}s).`);
   },
 
   stop() {
@@ -68,48 +68,60 @@ module.exports = {
 
     let messageId = config.livePanel.messageId || null;
 
-    // si no hay en config, intenta DB
     if (!messageId) {
       messageId = await getMeta(bot.db, "hours_livePanel_messageId").catch(() => null);
     }
 
-    // si existe, fetch
     if (messageId) {
       const msg = await channel.messages.fetch(messageId).catch(() => null);
       if (msg) return msg;
-      console.warn("[hours livePanel] messageId guardado no existe. Creando nuevo...");
+      console.warn("[hours livePanel] MessageId guardado no existe. Creando nuevo...");
     }
 
-    // crear nuevo
-    const created = await channel.send({ content: "📌 Iniciando panel de servicio..." });
+    const created = await channel.send({ content: "📌 Iniciando panel de servicio táctico..." });
     await setMeta(bot.db, "hours_livePanel_messageId", created.id).catch(() => null);
 
-    console.log("[hours livePanel] ✅ Panel creado. messageId =", created.id);
+    console.log("[hours livePanel] ✅ Panel en vivo creado con ID:", created.id);
     return created;
   },
 
   async _buildEmbed(bot) {
     const rows = await bot.db.all(
-      "SELECT user_id, start FROM hours_active ORDER BY start ASC",
+      "SELECT user_id, start, paused_at FROM hours_active ORDER BY start ASC",
       []
     );
+
+    let activeCount = 0;
+    let pausedCount = 0;
 
     const list = rows?.length
       ? rows.map((r) => {
           const who = config.livePanel.mentionUsers ? `<@${r.user_id}>` : r.user_id;
           const startMs = Number(r.start) || Date.now();
+
+          if (r.paused_at) {
+            pausedCount++;
+            return `⏸️ ${who} — *En Pausa* (${rel(Number(r.paused_at))})`;
+          }
+
+          activeCount++;
           const extra = config.livePanel.showSince
             ? ` — inició ${rel(startMs)} (${ts(startMs, "t")})`
             : "";
-          return `${who}${extra}`;
+          return `🟢 ${who}${extra}`;
         })
-      : ["Actualmente no hay ningún miembro en servicio."];
+      : ["Actualmente no hay ningún miembro en servicio activo."];
 
     return new EmbedBuilder()
       .setColor(config.colors.ui)
-      .setTitle("🔴 Militar en Servicio")
+      .setTitle("🔴 Personal Militar en Servicio Táctico")
       .setDescription(list.join("\n"))
-      .setFooter({ text: `Última actualización • ${new Date().toLocaleString("es-ES")}` });
+      .addFields([
+        { name: "Efectivos Activos", value: `${activeCount}`, inline: true },
+        { name: "Efectivos en Pausa", value: `${pausedCount}`, inline: true },
+        { name: "Total en Guardia", value: `${rows?.length || 0}`, inline: true }
+      ])
+      .setFooter({ text: `Última sincronización • ${new Date().toLocaleTimeString("es-ES")}` });
   },
 
   async update(bot) {

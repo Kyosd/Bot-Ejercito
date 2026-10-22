@@ -10,15 +10,14 @@ module.exports = {
     try {
       // BOTONES
       if (interaction.isButton()) {
-        // Panel principal
         if (interaction.customId?.startsWith("HOURS_")) {
           return hours.ui.route(bot, interaction);
         }
         return;
       }
 
-      // SELECT MENUS
-      if (interaction.isStringSelectMenu()) {
+      // SELECT MENUS (Tanto StringSelectMenu como UserSelectMenu)
+      if (interaction.isAnySelectMenu && interaction.isAnySelectMenu()) {
         const id = interaction.customId || "";
 
         if (id === "HOURS_GENERAL_MENU") {

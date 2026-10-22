@@ -1,17 +1,25 @@
 {
   "name": "bot-ejercito2",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": [
+    "discord-bot",
+    "military",
+    "roleplay",
+    "hours-tracker",
+    "sanctions"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Bot militar avanzado para control de servicio, sanciones y gestión táctica",
   "dependencies": {
     "discord.js": "^14.25.1",
     "dotenv": "^17.2.3",
+    "pg": "^8.13.1",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
   }

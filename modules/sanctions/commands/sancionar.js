@@ -1,18 +1,22 @@
 // modules/sanctions/commands/sancionar.js
+"use strict";
+
 const {
     SlashCommandBuilder,
     ActionRowBuilder,
     ButtonBuilder,
-    StringSelectMenuBuilder
+    StringSelectMenuBuilder,
+    EmbedBuilder
 } = require("discord.js");
 
 const service = require("../service");
 const logSanction = require("../logs");
+const coreConfig = require("../../../core/config");
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("sancionar")
-        .setDescription("Registrar una sanción a un soldado")
+        .setDescription("Registrar una sanción militar a un soldado")
         .addUserOption(opt =>
             opt.setName("soldado")
                 .setDescription("Soldado a sancionar")
@@ -20,31 +24,29 @@ module.exports = {
         )
         .addStringOption(opt =>
             opt.setName("razon")
-                .setDescription("Razón de la sanción")
+                .setDescription("Razón oficial de la sanción")
                 .setRequired(true)
         )
         .addStringOption(opt =>
             opt.setName("pruebas")
-                .setDescription("Pruebas de la sanción")
+                .setDescription("Enlaces o pruebas de la infracción")
                 .setRequired(false)
         ),
 
     async execute(bot, interaction) {
         const mod = bot.modules.sanctions;
-        const cfg = mod.config;
+        const cfg = mod.config || {};
 
         const generalMember = interaction.member;
 
         // ============================
         // VALIDACIÓN DE PERMISOS
         // ============================
-        const isGeneral =
-            cfg.generals.includes(generalMember.id) ||
-            generalMember.roles.cache.some(r => cfg.generals.includes(r.id));
+        const isGeneral = coreConfig.isGeneral(generalMember);
 
         if (!isGeneral) {
             return interaction.reply({
-                content: "No tienes permiso para usar este comando.",
+                content: "⛔ No tienes rango de mando para usar el sistema disciplinario.",
                 ephemeral: true
             });
         }
@@ -54,8 +56,7 @@ module.exports = {
         // ============================
         const target = interaction.options.getUser("soldado");
         const reason = interaction.options.getString("razon");
-        const evidence =
-            interaction.options.getString("pruebas") || "No proporcionadas";
+        const evidence = interaction.options.getString("pruebas") || "No proporcionadas";
 
         const soldierId = target.id;
         const soldierTag = `<@${soldierId}>`;
@@ -76,30 +77,64 @@ module.exports = {
             warning_number: newWarning,
             issued_by: generalId,
             issued_by_tag: generalTag,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            status: "ACTIVE"
         });
 
         await service.updateWarnings(bot, soldierId, soldierTag, newWarning);
 
         // ============================
-        // ENVIAR FORMATO AL CANAL
+        // CORTE MARCIAL AUTOMÁTICA (3/3 ADVERTENCIAS)
         // ============================
-        if (cfg.sanctionsChannel) {
-            const sanctionsChannel =
-                bot.client.channels.cache.get(cfg.sanctionsChannel);
+        let isCourtMartial = false;
+        if (newWarning >= 3) {
+            isCourtMartial = true;
+            // Bloqueo inmediato para entrar en servicio
+            await bot.db.run(
+                "INSERT INTO hours_blocked (user_id, reason, blocked_by, blocked_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET reason = excluded.reason",
+                [soldierId, "CORTE MARCIAL: 3/3 Advertencias Disciplinarias acumuladas", generalId, Date.now()]
+            );
 
-            if (sanctionsChannel) {
-                await sanctionsChannel.send(
-`📄 **FORMATO DE SANCIONES**
+            // Si estaba en servicio activo, forzar salida
+            const active = await bot.db.get("SELECT * FROM hours_active WHERE user_id = ?", [soldierId]);
+            if (active) {
+                const now = Date.now();
+                const minutes = Math.max(1, Math.floor((now - active.start) / 60000));
+                await bot.db.run('INSERT INTO hours_sessions (user_id, start, "end", duration) VALUES (?, ?, ?, ?)', [soldierId, active.start, now, minutes]);
+                await bot.db.run("DELETE FROM hours_active WHERE user_id = ?", [soldierId]);
+                try {
+                    await bot.modules.hours?.livePanel?.update(bot);
+                } catch (_) {}
+            }
+        }
 
-👤 **Nombre del agente:** ${soldierTag}
-📝 **Razón:** ${reason}
-⚠️ **Número de advertencia:** ${newWarning}/3
-📎 **Pruebas:** ${evidence}
-🎖️ **Emitido por:** ${generalTag}
-📅 **Fecha:** <t:${Math.floor(Date.now() / 1000)}:F>
-`
-                );
+        // ============================
+        // ENVIAR FORMATO AL CANAL OFICIAL
+        // ============================
+        const sanctionsChannelId = cfg.sanctionsChannel || coreConfig.channels.sanctions;
+        if (sanctionsChannelId) {
+            const sanctionsChannel = await bot.client.channels.fetch(sanctionsChannelId).catch(() => null);
+
+            if (sanctionsChannel && sanctionsChannel.isTextBased()) {
+                const sanctionEmbed = new EmbedBuilder()
+                    .setColor(isCourtMartial ? coreConfig.colors.danger : (cfg.colors?.warning || "#ffaa00"))
+                    .setTitle(isCourtMartial ? "🚨 EXPEDIENTE DISCIPLINARIO — CORTE MARCIAL" : "📄 REPORTE DE SANCIÓN MILITAR")
+                    .setDescription(
+                        `👤 **Agente Sancionado:** ${soldierTag} (${soldierId})\n` +
+                        `📝 **Motivo:** ${reason}\n` +
+                        `⚠️ **Advertencia:** \`${newWarning}/3\` ${isCourtMartial ? "**[LÍMITE ALCANZADO]**" : ""}\n` +
+                        `📎 **Pruebas:** ${evidence}\n` +
+                        `🎖️ **Oficial Instructor:** ${generalTag}\n` +
+                        `📅 **Fecha:** <t:${Math.floor(Date.now() / 1000)}:F>`
+                    )
+                    .setFooter({
+                        text: isCourtMartial
+                            ? "SENTENCIA: Suspensión inmediata de funciones y servicio activo."
+                            : "Reglamento Disciplinario Militar"
+                    })
+                    .setTimestamp();
+
+                await sanctionsChannel.send({ embeds: [sanctionEmbed] });
             }
         }
 
@@ -108,14 +143,14 @@ module.exports = {
         // ============================
         await logSanction(
             bot,
-            "sanción_creada",
+            isCourtMartial ? "corte_marcial_activada" : "sanción_creada",
             generalId,
             soldierId,
-            `Advertencia ${newWarning}/3 — ${reason}`
+            `Advertencia ${newWarning}/3 — ${reason}${isCourtMartial ? " [BLOQUEO AUTOMÁTICO APLICADO]" : ""}`
         );
 
         // ============================
-        // PANEL DE GESTIÓN
+        // PANEL DE GESTIÓN (EFÍMERO)
         // ============================
         const buttons = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
@@ -127,33 +162,28 @@ module.exports = {
                 .setLabel("Eliminar última")
                 .setStyle(2),
             new ButtonBuilder()
-                .setCustomId(`confirm_delete_one_${soldierId}`)
-                .setLabel("Eliminar 1 ADV")
-                .setStyle(2),
-            new ButtonBuilder()
                 .setCustomId(`confirm_reset_${soldierId}`)
-                .setLabel("Resetear todas")
+                .setLabel("Resetear expediente")
                 .setStyle(4),
             new ButtonBuilder()
                 .setCustomId("san_close")
                 .setLabel("Cerrar")
-                .setStyle(4)
+                .setStyle(2)
         );
 
         const menu = new ActionRowBuilder().addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId(`san_menu_${soldierId}`)
-                .setPlaceholder("Selecciona una opción")
+                .setPlaceholder("Selecciona una opción del expediente")
                 .addOptions([
-                    { label: "Lista de sancionados", value: "list" },
-                    { label: "Historial del sancionado", value: "history" },
-                    { label: "Historial general del sistema", value: "history_global" },
-                    { label: "Ver logs", value: "logs" }
+                    { label: "Lista general de sancionados", value: "list" },
+                    { label: "Historial completo del soldado", value: "history" },
+                    { label: "Ver auditoría de logs", value: "logs" }
                 ])
         );
 
         return interaction.reply({
-            content: `Panel de gestión para ${soldierTag}`,
+            content: `✅ **Sanción registrada correctamente para ${soldierTag}.**${isCourtMartial ? "\n🚨 **ALERTA: Se ha ejecutado Corte Marcial por acumulación de 3/3 advertencias.**" : ""}`,
             components: [buttons, menu],
             ephemeral: true
         });

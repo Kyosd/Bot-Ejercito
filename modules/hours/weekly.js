@@ -2,13 +2,13 @@
 
 const { EmbedBuilder } = require("discord.js");
 const config = require("./config");
-const logs   = require("./logs");
+const logs = require("./logs");
 
 module.exports = {
   async ensureMeta(bot) {
     await bot.db.run(`
       CREATE TABLE IF NOT EXISTS hours_meta (
-        key   TEXT PRIMARY KEY,
+        key TEXT PRIMARY KEY,
         value TEXT
       )
     `);
@@ -52,7 +52,6 @@ module.exports = {
     `, [now]);
   },
 
-  // ✅ evita ejecutar 2 veces en el mismo minuto (si el scheduler se duplica)
   async _setLastAutoRunMinute(bot, minuteKey) {
     await bot.db.run(`
       INSERT INTO hours_meta (key, value)
@@ -112,24 +111,30 @@ module.exports = {
     for (const r of rows) {
       const h = Math.floor(r.total / 60);
       const m = r.total % 60;
-      desc += `**${rank}. <@${r.user_id}> — ${h}h ${m}m**\n`;
+      const line = `**${rank}.** <@${r.user_id}> — **${h}h ${m}m**\n`;
+
+      if (desc.length + line.length > 3900) {
+        desc += `\n*... y ${rows.length - rank + 1} soldados más.*`;
+        break;
+      }
+
+      desc += line;
       rank++;
     }
 
     const embed = new EmbedBuilder()
       .setColor(config.colors.embed)
       .setTitle(`📘 Reporte Semanal — ${config.system.name}`)
-      .setDescription("Resumen de horas desde el último reinicio semanal.\n\n" + desc)
+      .setDescription("Resumen oficial de horas registradas desde el último reinicio semanal.\n\n" + desc)
       .setFooter({ text: config.system.footer })
       .setTimestamp(Date.now());
 
     // Automático
     if (auto) {
-      // anti doble run por minuto
       const now = new Date();
       const minuteKey = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()} ${now.getHours()}:${now.getMinutes()}`;
       const last = await this._getLastAutoRunMinute(bot);
-      if (last === minuteKey) return; // ya corrió
+      if (last === minuteKey) return;
 
       const guild = await bot.client.guilds.fetch(config.guildId).catch(() => null);
       if (!guild) return;
