@@ -33,9 +33,9 @@ module.exports = {
         const w = minutesToHM(weekly);
         const t = minutesToHM(total);
 
-        let estado = "⚪ Fuera de servicio";
-        if (active?.paused_at) estado = `⏸️ En pausa desde ${rel(active.paused_at)}`;
-        else if (active) estado = `🟢 En servicio desde ${rel(active.start)} (${ts(active.start, "t")})`;
+        let estado = "<:offline:1565829960638267414> Fuera de servicio";
+        if (active?.paused_at) estado = `<:pause:1565446432058638386> En pausa desde ${rel(active.paused_at)}`;
+        else if (active) estado = `<:online:1565445915781763336> En servicio desde ${rel(active.start)} (${ts(active.start, "t")})`;
 
         const embed = new EmbedBuilder()
             .setColor(config.colors.embed)
