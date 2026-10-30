@@ -31,7 +31,7 @@ async function send(bot, embed) {
 module.exports = {
   async serviceIn(bot, user, startMs) {
     const e = baseEmbed()
-      .setTitle("🟢 Servicio iniciado")
+      .setTitle("<:active:1565445915781763336> Servicio iniciado")
       .setDescription(
         `**Usuario:** <@${user.id}> (${user.id})\n` +
         `**Inicio:** ${ts(startMs, "F")}`
@@ -41,7 +41,7 @@ module.exports = {
 
   async serviceOut(bot, user, startMs, endMs, minutes, total, weekly) {
     const e = baseEmbed()
-      .setTitle("🔴 Servicio finalizado")
+      .setTitle("<:exit:1565446798586282165> Servicio finalizado")
       .setDescription(
         `**Usuario:** <@${user.id}> (${user.id})\n\n` +
         `**Turno:**\n` +
@@ -57,7 +57,7 @@ module.exports = {
 
   async forceOut(bot, executor, targetId, minutes) {
     const e = baseEmbed()
-      .setTitle("⚠️ Salida forzada")
+      .setTitle("<a:warning:1565451290367107092> Salida forzada")
       .setDescription(
         `**Ejecutor:** <@${executor.id}>\n` +
         `**Objetivo:** <@${targetId}>\n` +
@@ -68,7 +68,7 @@ module.exports = {
 
   async manualAdd(bot, executor, targetId, minutes) {
     const e = baseEmbed()
-      .setTitle("➕ Horas añadidas manualmente")
+      .setTitle("<:plus:1565461915306565784> Horas añadidas manualmente")
       .setDescription(
         `**Ejecutor:** <@${executor.id}>\n` +
         `**Objetivo:** <@${targetId}>\n` +
@@ -79,7 +79,7 @@ module.exports = {
 
   async manualRemove(bot, executor, targetId, minutes) {
     const e = baseEmbed()
-      .setTitle("➖ Horas restadas manualmente")
+      .setTitle("<:minus:1565467203623460934> Horas restadas manualmente")
       .setDescription(
         `**Ejecutor:** <@${executor.id}>\n` +
         `**Objetivo:** <@${targetId}>\n` +
@@ -90,7 +90,7 @@ module.exports = {
 
   async resetUser(bot, executor, targetId) {
     const e = baseEmbed()
-      .setTitle("♻️ Reset de usuario")
+      .setTitle("<:reset:1565467886745813205> Reset de usuario")
       .setDescription(
         `**Ejecutor:** <@${executor.id}>\n` +
         `**Objetivo:** <@${targetId}>`
@@ -100,7 +100,7 @@ module.exports = {
 
   async resetAll(bot, executor) {
     const e = baseEmbed()
-      .setTitle("💣 Reset total")
+      .setTitle("<:warning:1565451290367107092> Reset total")
       .setDescription(
         `**Ejecutor:** <@${executor.id}>\n` +
         `Todos los registros han sido borrados.`
@@ -110,7 +110,7 @@ module.exports = {
 
   async block(bot, executor, targetId) {
     const e = baseEmbed()
-      .setTitle("⛔ Usuario bloqueado")
+      .setTitle("<:blocked:1565457686806397093> Usuario bloqueado")
       .setDescription(
         `**Ejecutor:** <@${executor.id}>\n` +
         `**Bloqueado:** <@${targetId}>`
@@ -120,7 +120,7 @@ module.exports = {
 
   async unblock(bot, executor, targetId) {
     const e = baseEmbed()
-      .setTitle("✅ Usuario desbloqueado")
+      .setTitle("<:unblocked:1565445915781763336> Usuario desbloqueado")
       .setDescription(
         `**Ejecutor:** <@${executor.id}>\n` +
         `**Desbloqueado:** <@${targetId}>`
@@ -130,7 +130,7 @@ module.exports = {
 
   async weeklyReport(bot, auto, executor = null) {
     const e = baseEmbed()
-      .setTitle("📘 Reporte semanal generado")
+      .setTitle("<a:escribiendo:1563959662003622014> Reporte semanal generado")
       .setDescription(
         auto
           ? "Reporte generado automáticamente."

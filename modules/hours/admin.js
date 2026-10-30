@@ -42,7 +42,7 @@ function generalGuard(interaction) {
   if (!isGeneral(interaction.member ?? interaction.user)) {
     return {
       ok: false,
-      payload: { content: "⛔ No tienes autorización del Alto Mando para ejecutar esta acción.", ephemeral: true }
+      payload: { content: "<a:denegado:1565451290367107092> No tienes autorización del Alto Mando para ejecutar esta acción.", ephemeral: true }
     };
   }
   return { ok: true };
@@ -52,14 +52,14 @@ module.exports = {
   async openPanel(bot, interaction) {
     if (!isGeneral(interaction.member ?? interaction.user)) {
       return safeReply(interaction, {
-        content: "⛔ No tienes autorización para acceder al Panel de Mando.",
+        content: "<a:denegado:1565451290367107092> No tienes autorización para acceder al Panel de Mando.",
         ephemeral: true
       });
     }
 
     const embed = new EmbedBuilder()
       .setColor(config.colors.embed)
-      .setTitle(`🎖️ Panel de Mando Táctico — ${config.system.name}`)
+      .setTitle(`<a:mando:1563966910264246293> Panel de Mando Táctico — ${config.system.name}`)
       .setDescription("Centro de mando y administración militar de horas.\n\nSelecciona una operación del menú a continuación:")
       .setFooter({ text: config.system.footer });
 
@@ -101,13 +101,13 @@ module.exports = {
       }
 
       const desc = rows.map(r => {
-        const estado = r.paused_at ? "⏸️ *En Pausa*" : "🟢 *Activo*";
+        const estado = r.paused_at ? "<:pausa:1565446432058638386> *En Pausa*" : "<:active:1565445915781763336> *Activo*";
         return `• <@${r.user_id}> — ${estado} desde ${rel(r.paused_at || r.start)}`;
       }).join("\n");
 
       const embed = new EmbedBuilder()
         .setColor(config.colors.embed)
-        .setTitle("👁️ Contingente Actual en Servicio")
+        .setTitle("<a:eye:1565453450286866662> Contingente Actual en Servicio")
         .setDescription(desc)
         .setFooter({ text: config.system.footer });
 
@@ -118,7 +118,7 @@ module.exports = {
     if (option === "RESET_ALL") {
       const confirmEmbed = new EmbedBuilder()
         .setColor(config.colors.danger)
-        .setTitle("⚠️ ALERTA DE SEGURIDAD: RESETEO TOTAL")
+        .setTitle("<a:warning:1565453809038262432> ALERTA DE SEGURIDAD: RESETEO TOTAL")
         .setDescription(
           "¿Estás absolutamente seguro de que deseas **ELIMINAR TODAS LAS HORAS Y TURNOS** de todo el servidor?\n\n" +
           "Esta acción es irreversible y vaciará el historial completo de todos los soldados."
@@ -152,7 +152,7 @@ module.exports = {
     );
 
     return safeReply(interaction, {
-      content: `🎯 **Paso 2:** Selecciona al soldado para la acción: **${option}**`,
+      content: `<a:mando:1563966910264246293> **Paso 2:** Selecciona al soldado para la acción: **${option}**`,
       components: [userSelect],
       ephemeral: true
     });
@@ -169,7 +169,7 @@ module.exports = {
     await refreshLive(bot);
 
     return safeReply(interaction, {
-      content: "♻️ **Operación ejecutada:** Todas las horas y servicios activos han sido reseteados exitosamente.",
+      content: "<:ok:1565454275147071558> **Operación ejecutada:** Todas las horas y servicios activos han sido reseteados exitosamente.",
       components: [],
       embeds: [],
       ephemeral: true
@@ -178,7 +178,7 @@ module.exports = {
 
   async cancelResetAll(bot, interaction) {
     return safeReply(interaction, {
-      content: "✅ Operación de reseteo cancelada. Ningún dato fue alterado.",
+      content: "<a:check:1563959567191244892> Operación de reseteo cancelada. Ningún dato fue alterado.",
       components: [],
       embeds: [],
       ephemeral: true
@@ -223,7 +223,7 @@ module.exports = {
 
       const hm = minutesToHM(minutes);
       return safeReply(interaction, {
-        content: `🛑 Salida forzada aplicada a <@${userId}>. Se registraron **${hm.text}**.`,
+        content: `<:exit:1565446798586282165> Salida forzada aplicada a <@${userId}>. Se registraron **${hm.text}**.`,
         ephemeral: true
       });
     }
@@ -288,7 +288,7 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setColor(config.colors.embed)
-        .setTitle(`📘 Historial Semanal — <@${userId}>`)
+        .setTitle(`<a:text:1563959662003622014> Historial Semanal — <@${userId}>`)
         .setDescription(desc.slice(0, 4000) + `\n**Total semanal acumulado:** ${tHM.text}`)
         .setFooter({ text: config.system.footer });
 
@@ -319,7 +319,7 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setColor(config.colors.embed)
-        .setTitle(`📚 Historial Total Histórico — <@${userId}>`)
+        .setTitle(`<:top:1565456496458858506> Historial Total Histórico — <@${userId}>`)
         .setDescription(desc.slice(0, 4000) + `\n**Total histórico acumulado:** ${tHM.text}`)
         .setFooter({ text: config.system.footer });
 
@@ -335,7 +335,7 @@ module.exports = {
       await logs.block(bot, interaction.user, userId);
 
       return safeReply(interaction, {
-        content: `🚫 <@${userId}> ha sido suspendido y bloqueado para entrar en servicio.`,
+        content: `<:blocked:1565457686806397093> <@${userId}> ha sido suspendido y bloqueado para entrar en servicio.`,
         ephemeral: true
       });
     }
@@ -346,7 +346,7 @@ module.exports = {
       await logs.unblock(bot, interaction.user, userId);
 
       return safeReply(interaction, {
-        content: `✅ <@${userId}> ha sido desbloqueado y puede volver a registrar servicio.`,
+        content: `<:unblocked:1565445915781763336> <@${userId}> ha sido desbloqueado y puede volver a registrar servicio.`,
         ephemeral: true
       });
     }

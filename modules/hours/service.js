@@ -33,7 +33,7 @@ module.exports = {
       );
       if (blocked) {
         return safeReply(interaction, {
-          content: `⛔ No estás autorizado para entrar en servicio.\n**Motivo:** ${blocked.reason || "Sanción activa o corte marcial."}`,
+          content: `<:blocked:1565457686806397093> No estás autorizado para entrar en servicio.\n**Motivo:** ${blocked.reason || "Sanción activa o corte marcial."}`,
           ephemeral: true
         });
       }
@@ -201,6 +201,56 @@ module.exports = {
       console.error("[hours] Error en endService:", err);
       return safeReply(interaction, {
         content: "Ocurrió un error al finalizar el servicio.",
+        ephemeral: true
+      });
+    }
+  },
+
+  async getMyStatus(bot, interaction) {
+    const userId = interaction.user.id;
+    const db = bot.db;
+    const { EmbedBuilder } = require("discord.js");
+
+    try {
+      const active = await db.get("SELECT * FROM hours_active WHERE user_id = ?", [userId]);
+      const totalMinutes = await getTotalMinutes(db, userId);
+      const weeklyMinutes = await weekly.getUserWeeklyMinutes(bot, userId);
+      const now = Date.now();
+
+      let estado = "⚪ Fuera de servicio";
+      let liveMinutes = 0;
+      if (active) {
+        let paused = toInt(active.total_paused, 0);
+        if (active.paused_at) {
+          paused += Math.max(0, now - toInt(active.paused_at));
+          estado = `⏸️ En pausa desde <t:${Math.floor(toInt(active.paused_at) / 1000)}:R>`;
+        } else {
+          estado = `🟢 En servicio desde <t:${Math.floor(toInt(active.start) / 1000)}:R>`;
+        }
+        liveMinutes = Math.max(0, Math.floor((now - toInt(active.start) - paused) / 60000));
+      }
+
+      const live = minutesToHM(liveMinutes);
+      const week = minutesToHM(weeklyMinutes);
+      const total = minutesToHM(totalMinutes);
+
+      const embed = new EmbedBuilder()
+        .setColor(config.colors.embed)
+        .setTitle("📡 Tu estado de servicio")
+        .setDescription(estado)
+        .addFields(
+          { name: "Turno actual (neto)", value: `**${live.text}**`, inline: true },
+          { name: "Esta semana", value: `**${week.text}**`, inline: true },
+          { name: "Histórico", value: `**${total.text}**`, inline: true }
+        )
+        .setFooter({ text: config.system.footer })
+        .setTimestamp();
+
+      return safeReply(interaction, { embeds: [embed], ephemeral: true });
+    } catch (err) {
+      console.error("[hours] Error en getMyStatus:", err);
+      return safeReply(interaction, {
+        content: "No se pudo consultar tu estado.",
         ephemeral: true
       });
     }

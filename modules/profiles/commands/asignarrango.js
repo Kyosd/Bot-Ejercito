@@ -3,6 +3,7 @@
 
 const { SlashCommandBuilder } = require("discord.js");
 const coreConfig = require("../../../core/config");
+const { rankCodeFor } = require("../../../core/identity");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -59,21 +60,28 @@ module.exports = {
         }
 
         const medalsJson = JSON.stringify(medals);
+        const rankCode = rankCodeFor(rank);
 
         await db.run(
             `
-            INSERT INTO soldier_profiles (user_id, rank, division, joined_at, medals)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO soldier_profiles (user_id, rank, division, joined_at, medals, rank_code)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 rank = excluded.rank,
                 division = excluded.division,
-                medals = excluded.medals
+                medals = excluded.medals,
+                rank_code = excluded.rank_code
         `,
-            [target.id, rank, division, Date.now(), medalsJson]
+            [target.id, rank, division, Date.now(), medalsJson, rankCode]
         );
 
+        const updated = await db.get("SELECT * FROM soldier_profiles WHERE user_id = ?", [target.id]);
+        if (updated?.plate && updated?.display_name && bot.modules?.verify?.service?.syncNickname) {
+            await bot.modules.verify.service.syncNickname(interaction.guild, target.id, updated);
+        }
+
         return interaction.reply({
-            content: `🎖️ **Expediente actualizado:** El soldado <@${target.id}> ha sido asignado al rango **${rank}** en la división **${division}**.${newMedal ? `\n🏅 Se le otorgó la condecoración: *${newMedal}*.` : ""}`,
+            content: `🎖️ **Expediente actualizado:** El soldado <@${target.id}> ha sido asignado al rango **${rank}** (${rankCode}) en la división **${division}**.${newMedal ? `\n🏅 Se le otorgó la condecoración: *${newMedal}*.` : ""}`,
             ephemeral: false
         });
     }

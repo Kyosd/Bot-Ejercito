@@ -30,7 +30,10 @@ const config = {
         liveStatus: process.env.CHANNEL_LIVE_STATUS || "1398132225223950469",
         sanctions: process.env.CHANNEL_SANCTIONS || "1518745086031298782",
         sanctionsLogs: process.env.CHANNEL_SANCTIONS_LOGS || "1444087102701834280",
-        auditBackup: process.env.CHANNEL_AUDIT || "1416997231499935875"
+        auditBackup: process.env.CHANNEL_AUDIT || "1416997231499935875",
+        verification: process.env.CHANNEL_VERIFICATION || "1416997231499935875",
+        verificationPanel: process.env.CHANNEL_VERIFICATION_PANEL || process.env.CHANNEL_PRINCIPAL || "1398132225223950469",
+        arrests: process.env.CHANNEL_ARRESTS || process.env.CHANNEL_SANCTIONS || "1518745086031298782"
     },
 
     colors: {

@@ -685,11 +685,24 @@ module.exports = {
     },
 
     async generateTranscript(channel, ticket) {
-        let messages = [];
+        const collected = [];
         try {
-            const fetched = await channel.messages.fetch({ limit: 100 });
-            messages = Array.from(fetched.values()).reverse();
-        } catch (_) {}
+            let lastId;
+            for (let i = 0; i < 50; i++) {
+                const batch = await channel.messages.fetch({
+                    limit: 100,
+                    ...(lastId ? { before: lastId } : {})
+                });
+                if (!batch.size) break;
+                collected.push(...batch.values());
+                lastId = batch.last().id;
+                if (batch.size < 100) break;
+            }
+        } catch (err) {
+            console.error("[tickets] Error leyendo mensajes para transcripción:", err);
+        }
+
+        const messages = collected.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
         let text = "========================================================\n";
         text += `TRANSCRIPCIÓN DE TICKET MILITAR — #${channel.name}\n`;
@@ -702,18 +715,36 @@ module.exports = {
         }
         text += "========================================================\n\n";
 
+        if (!messages.length) {
+            text += "(No se pudieron leer mensajes. Activa el Privileged Intent Message Content en el portal de Discord y el permiso Leer historial.)\n";
+        }
+
         for (const msg of messages) {
             const time = new Date(msg.createdTimestamp).toLocaleString("es-ES");
-            const author = `${msg.author.tag} (${msg.author.id})`;
-            let line = `[${time}] ${author}:\n${msg.content || ""}\n`;
+            const botTag = msg.author.bot ? " [BOT]" : "";
+            const author = `${msg.author.tag || msg.author.username}${botTag} (${msg.author.id})`;
+            const bodyParts = [];
 
+            if (msg.reference?.messageId) {
+                bodyParts.push(`(responde a ${msg.reference.messageId})`);
+            }
+            if (msg.content && msg.content.trim()) {
+                bodyParts.push(msg.content);
+            }
+            if (msg.stickers?.size) {
+                bodyParts.push(`[Stickers]: ${msg.stickers.map(s => s.name).join(", ")}`);
+            }
             if (msg.attachments.size > 0) {
-                line += `  [Archivos Adjuntos]: ${msg.attachments.map(a => a.url).join(", ")}\n`;
+                bodyParts.push(`[Archivos]: ${msg.attachments.map(a => a.url).join(", ")}`);
             }
             if (msg.embeds.length > 0) {
-                line += `  [Embed]: ${msg.embeds.map(e => e.title || e.description || "").join(" | ")}\n`;
+                bodyParts.push(`[Embed]: ${msg.embeds.map(e => e.title || e.description || e.author?.name || "(embed)").join(" | ")}`);
             }
-            text += line + "\n";
+            if (!bodyParts.length) {
+                bodyParts.push("(sin texto — revisa Message Content Intent si es un usuario)");
+            }
+
+            text += `[${time}] ${author}:\n${bodyParts.join("\n")}\n\n`;
         }
 
         return new AttachmentBuilder(Buffer.from(text, "utf-8"), {

@@ -26,7 +26,10 @@ async function sendAutoBackup(bot) {
         hours_blocked: await db.all("SELECT * FROM hours_blocked"),
         sanctions: await db.all("SELECT * FROM sanctions"),
         soldier_warnings: await db.all("SELECT * FROM soldier_warnings"),
-        soldier_profiles: await db.all("SELECT * FROM soldier_profiles")
+        soldier_profiles: await db.all("SELECT * FROM soldier_profiles"),
+        arrests: await db.all("SELECT * FROM arrests").catch(() => []),
+        supplies: await db.all("SELECT * FROM supplies").catch(() => []),
+        verification_requests: await db.all("SELECT * FROM verification_requests").catch(() => [])
       }
     };
 
@@ -36,7 +39,7 @@ async function sendAutoBackup(bot) {
     );
 
     await channel.send({
-      content: "💾 **Copia de seguridad automática semanal generada previo al reinicio:**",
+      content: "<:save:1565469393008332810> **Copia de seguridad automática semanal generada previo al reinicio:**",
       files: [attachment]
     });
   } catch (err) {

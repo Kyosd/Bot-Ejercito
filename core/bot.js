@@ -13,7 +13,8 @@ class Bot {
                 GatewayIntentBits.Guilds,
                 GatewayIntentBits.GuildMessages,
                 GatewayIntentBits.GuildMessageReactions,
-                
+                GatewayIntentBits.MessageContent,
+                GatewayIntentBits.GuildMembers
             ],
             partials: [
                 Partials.Message,

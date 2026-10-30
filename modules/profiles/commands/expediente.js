@@ -3,6 +3,13 @@
 
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const coreConfig = require("../../../core/config");
+const { getWeekStart } = require("../../../core/week");
+const { rankCodeFor } = require("../../../core/identity");
+
+function hm(minutes) {
+    const n = Math.max(0, Number(minutes) || 0);
+    return `${Math.floor(n / 60)}h ${n % 60}m`;
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -19,7 +26,6 @@ module.exports = {
         const userId = targetUser.id;
         const db = bot.db;
 
-        // 1. Obtener perfil militar
         let profile = await db.get("SELECT * FROM soldier_profiles WHERE user_id = ?", [userId]);
         if (!profile) {
             await db.run(
@@ -32,11 +38,14 @@ module.exports = {
                 division: "Infantería",
                 joined_at: Date.now(),
                 medals: "[]",
-                notes: ""
+                notes: "",
+                display_name: null,
+                plate: null,
+                rank_code: null,
+                verified_at: null
             };
         }
 
-        // 2. Estado de servicio
         const active = await db.get("SELECT * FROM hours_active WHERE user_id = ?", [userId]);
         let estadoServicio = "⚪ **Libre de Servicio**";
         if (active) {
@@ -47,7 +56,6 @@ module.exports = {
             }
         }
 
-        // 3. Horas de servicio
         const hoursMod = bot.modules?.hours;
         let weeklyMinutes = 0;
         if (hoursMod?.weekly) {
@@ -57,12 +65,6 @@ module.exports = {
         const totalRow = await db.get("SELECT SUM(duration) AS total FROM hours_sessions WHERE user_id = ?", [userId]);
         const totalMinutes = Number(totalRow?.total || 0);
 
-        const wH = Math.floor(weeklyMinutes / 60);
-        const wM = weeklyMinutes % 60;
-        const tH = Math.floor(totalMinutes / 60);
-        const tM = totalMinutes % 60;
-
-        // 4. Advertencias y Régimen Disciplinario
         const warnRow = await db.get("SELECT warnings FROM soldier_warnings WHERE soldier_id = ?", [userId]);
         const warnings = warnRow?.warnings || 0;
         const blocked = await db.get("SELECT reason FROM hours_blocked WHERE user_id = ?", [userId]);
@@ -74,7 +76,6 @@ module.exports = {
             disciplinario += "\n✅ **Conducta:** `Impecable`";
         }
 
-        // 5. Medallas
         let medalsList = "Sin condecoraciones aún.";
         try {
             const parsed = JSON.parse(profile.medals || "[]");
@@ -83,19 +84,58 @@ module.exports = {
             }
         } catch (_) {}
 
+        const weekStart = await getWeekStart(db);
+        const arrestsWeek = await db.get(
+            "SELECT COUNT(*) AS n FROM arrests WHERE soldier_id = ? AND created_at >= ?",
+            [userId, weekStart]
+        ).catch(() => ({ n: 0 }));
+        const arrestsTotal = await db.get(
+            "SELECT COUNT(*) AS n FROM arrests WHERE soldier_id = ?",
+            [userId]
+        ).catch(() => ({ n: 0 }));
+        const lastArrest = await db.get(
+            "SELECT civilian_name, infraction_label, created_at FROM arrests WHERE soldier_id = ? ORDER BY created_at DESC LIMIT 1",
+            [userId]
+        ).catch(() => null);
+
+        const suppliesWeek = await db.get(
+            "SELECT COALESCE(SUM(amount), 0) AS n FROM supplies WHERE soldier_id = ? AND created_at >= ?",
+            [userId, weekStart]
+        ).catch(() => ({ n: 0 }));
+        const suppliesTotal = await db.get(
+            "SELECT COALESCE(SUM(amount), 0) AS n FROM supplies WHERE soldier_id = ?",
+            [userId]
+        ).catch(() => ({ n: 0 }));
+
+        const code = profile.rank_code || rankCodeFor(profile.rank);
+        const identity = profile.plate
+            ? `\`[${profile.plate}] ${profile.display_name || targetUser.username} ${code}\``
+            : "`Sin placa — pendiente de verificación`";
+        const verified = profile.verified_at
+            ? `✅ Verificado <t:${Math.floor(Number(profile.verified_at) / 1000)}:d>`
+            : "❌ Sin verificar";
+
+        let arrestLine = `• **Semana:** \`${Number(arrestsWeek?.n || 0)}\` efectuados\n• **Total:** \`${Number(arrestsTotal?.n || 0)}\` efectuados`;
+        if (lastArrest) {
+            const civText = lastArrest.civilian_name ? ` (${lastArrest.civilian_name})` : "";
+            arrestLine += `\n• **Último:** ${lastArrest.infraction_label}${civText} (<t:${Math.floor(lastArrest.created_at / 1000)}:R>)`;
+        }
+
         const embed = new EmbedBuilder()
             .setColor(coreConfig.colors.militaryGold || "#d4af37")
-            .setTitle(`🎖️ EXPEDIENTE MILITAR — ${targetUser.tag}`)
-            .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-            .setDescription(`Ficha táctica oficial registrada en la base de datos del Ejército.`)
+            .setTitle(`🎖️ EXPEDIENTE MILITAR — ${targetUser.username}`)
+            .setThumbnail(targetUser.displayAvatarURL({ size: 256 }))
+            .setDescription(`Identidad operativa: ${identity}\n${verified}`)
             .addFields([
-                { name: "👤 Soldado", value: `<@${userId}> (\`${userId}\`)`, inline: true },
-                { name: "🔰 Rango Militar", value: `**${profile.rank}**`, inline: true },
+                { name: "👤 Soldado", value: `<@${userId}>`, inline: true },
+                { name: "🔰 Rango", value: `**${profile.rank}** ${code}`, inline: true },
                 { name: "🛡️ División", value: `**${profile.division}**`, inline: true },
-                { name: "📡 Estado Actual", value: estadoServicio, inline: false },
-                { name: "⏱️ Tiempo de Servicio", value: `• **Esta semana:** \`${wH}h ${wM}m\`\n• **Total histórico:** \`${tH}h ${tM}m\``, inline: true },
-                { name: "⚖️ Régimen Disciplinario", value: disciplinario, inline: true },
-                { name: "🏅 Condecoraciones y Méritos", value: medalsList, inline: false }
+                { name: "📡 Estado actual", value: estadoServicio, inline: false },
+                { name: "⏱️ Servicio", value: `• **Semana:** \`${hm(weeklyMinutes)}\`\n• **Histórico:** \`${hm(totalMinutes)}\``, inline: true },
+                { name: "⚖️ Disciplina", value: disciplinario, inline: true },
+                { name: "🚨 Arrestos", value: arrestLine, inline: true },
+                { name: "📦 Abastecimiento", value: `• **Semana:** \`${Number(suppliesWeek?.n || 0)}\`\n• **Total:** \`${Number(suppliesTotal?.n || 0)}\``, inline: true },
+                { name: "🏅 Condecoraciones", value: medalsList, inline: false }
             ])
             .setFooter({ text: "Comando General • Sistema Táctico de Personal" })
             .setTimestamp();

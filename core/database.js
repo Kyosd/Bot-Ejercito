@@ -220,6 +220,66 @@ class Database {
             await this.exec("ALTER TABLE ticket_sections ADD COLUMN category_name TEXT DEFAULT NULL;");
         } catch (_) {}
 
+        const profileAlters = [
+            "ALTER TABLE soldier_profiles ADD COLUMN display_name TEXT DEFAULT NULL",
+            "ALTER TABLE soldier_profiles ADD COLUMN plate TEXT DEFAULT NULL",
+            "ALTER TABLE soldier_profiles ADD COLUMN rank_code TEXT DEFAULT NULL",
+            "ALTER TABLE soldier_profiles ADD COLUMN verified_at " + intBig + " DEFAULT NULL",
+            "ALTER TABLE soldier_profiles ADD COLUMN verified_by TEXT DEFAULT NULL"
+        ];
+        for (const sql of profileAlters) {
+            try { await this.exec(sql); } catch (_) {}
+        }
+
+        await this.exec(`
+            CREATE TABLE IF NOT EXISTS verification_requests (
+                id ${pkAuto},
+                user_id TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                channel_id TEXT NOT NULL,
+                message_id TEXT NOT NULL,
+                status TEXT DEFAULT 'PENDING',
+                created_at ${intBig} NOT NULL,
+                reviewed_by TEXT DEFAULT NULL,
+                reviewed_at ${intBig} DEFAULT NULL
+            );
+        `);
+
+        await this.exec(`
+            CREATE TABLE IF NOT EXISTS arrests (
+                id ${pkAuto},
+                soldier_id TEXT NOT NULL,
+                soldier_tag TEXT NOT NULL,
+                civilian_name TEXT NOT NULL,
+                infraction_code INTEGER NOT NULL,
+                infraction_label TEXT NOT NULL,
+                evidence TEXT,
+                notes TEXT,
+                issued_by TEXT NOT NULL,
+                issued_by_tag TEXT NOT NULL,
+                created_at ${intBig} NOT NULL
+            );
+        `);
+
+        // Migración suave: Agregar civilian_name si la tabla arrests ya existía
+        try {
+            await this.exec("ALTER TABLE arrests ADD COLUMN civilian_name TEXT DEFAULT 'Civil no identificado';");
+        } catch (_) {}
+
+        await this.exec(`
+            CREATE TABLE IF NOT EXISTS supplies (
+                id ${pkAuto},
+                soldier_id TEXT NOT NULL,
+                soldier_tag TEXT NOT NULL,
+                supply_type TEXT NOT NULL,
+                amount INTEGER NOT NULL,
+                evidence TEXT,
+                notes TEXT,
+                logged_by TEXT NOT NULL,
+                created_at ${intBig} NOT NULL
+            );
+        `);
+
         console.log("[DATABASE] Esquemas y tablas sincronizadas correctamente.");
     }
 

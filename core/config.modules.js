@@ -5,6 +5,9 @@ module.exports = {
         "sendCenter",
         "profiles",
         "tactical",
-        "tickets"
+        "tickets",
+        "verify",
+        "arrests",
+        "supplies"
     ]
 };

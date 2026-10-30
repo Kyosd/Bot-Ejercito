@@ -124,7 +124,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(config.colors.embed)
-      .setTitle(`📘 Reporte Semanal — ${config.system.name}`)
+      .setTitle(`<:send:1563959848914128937> Reporte Semanal — ${config.system.name}`)
       .setDescription("Resumen oficial de horas registradas desde el último reinicio semanal.\n\n" + desc)
       .setFooter({ text: config.system.footer })
       .setTimestamp(Date.now());

@@ -10,17 +10,17 @@ module.exports = {
     const week = minutesToHM(weeklyMinutes);
 
     return new EmbedBuilder()
-      .setColor(config.colors.embed)
-      .setTitle(`🔰 Servicio Iniciado — ${config.system.name}`)
-      .setDescription(
-        `**Operador:** <@${user.id}>\n` +
-        `**Entrada:** ${ts(startMs, "F")}\n\n` +
-        `**Estado de horas:**\n` +
-        `• Semana actual: **${week.h}h ${week.m}m**\n` +
-        `• Histórico total: **${total.h}h ${total.m}m**\n\n` +
-        `Mantenga la disciplina en el servicio.`
+      .setColor(config.colors.success)
+      .setTitle("<:active:1565445915781763336> En servicio")
+      .setThumbnail(user.displayAvatarURL({ size: 128 }))
+      .setDescription(`<@${user.id}> inició guardia.`)
+      .addFields(
+        { name: "Entrada", value: `${ts(startMs, "F")}\n${ts(startMs, "R")}`, inline: true },
+        { name: "Semana", value: `**${week.text}**`, inline: true },
+        { name: "Histórico", value: `**${total.text}**`, inline: true }
       )
-      .setFooter({ text: config.system.footer });
+      .setFooter({ text: config.system.footer })
+      .setTimestamp(startMs);
   },
 
   serviceOut(user, startMs, endMs, sessionMinutes, totalMinutes, weeklyMinutes) {
@@ -29,19 +29,18 @@ module.exports = {
     const week = minutesToHM(weeklyMinutes);
 
     return new EmbedBuilder()
-      .setColor(config.colors.embed)
-      .setTitle(`🔰 Servicio Finalizado — ${config.system.name}`)
-      .setDescription(
-        `**Operador:** <@${user.id}>\n\n` +
-        `**Turno actual:**\n` +
-        `• Inicio: ${ts(startMs, "t")}\n` +
-        `• Fin: ${ts(endMs, "t")}\n` +
-        `• Duración: **${ses.h}h ${ses.m}m**\n\n` +
-        `**Estado de horas:**\n` +
-        `• Semana actual: **${week.h}h ${week.m}m**\n` +
-        `• Histórico total: **${total.h}h ${total.m}m**\n\n` +
-        `Buen trabajo. Espere nuevas órdenes.`
+      .setColor(config.colors.danger)
+      .setTitle("<a:exit:1565446798586282165> Servicio cerrado")
+      .setThumbnail(user.displayAvatarURL({ size: 128 }))
+      .setDescription(`<@${user.id}> finalizó su turno.`)
+      .addFields(
+        { name: "Inicio", value: ts(startMs, "t"), inline: true },
+        { name: "Fin", value: ts(endMs, "t"), inline: true },
+        { name: "Duración neta", value: `**${ses.text}**`, inline: true },
+        { name: "Semana", value: `**${week.text}**`, inline: true },
+        { name: "Histórico", value: `**${total.text}**`, inline: true }
       )
-      .setFooter({ text: config.system.footer });
+      .setFooter({ text: config.system.footer })
+      .setTimestamp(endMs);
   }
 };

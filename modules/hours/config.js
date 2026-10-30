@@ -1,38 +1,31 @@
 "use strict";
 
-module.exports = {
-  guildId: "1359765875636310058",
+const core = require("../../core/config");
 
-  // IDs de usuarios o roles con permisos de general
-  generals: [
-    "1398131944872480890",
-    "1420882354775527484",
-    "1392985835355508766",
-    "1396673898984112168",
-  ],
+module.exports = {
+  guildId: core.guildId,
+
+  generals: core.generals,
 
   channels: {
-    principal: "1398132225223950469",
-    report: "1443688275608080394",
-    logs: "1416997231499935875",
-
-    // NUEVO: canal donde irá el embed “Staff en Servicio”
-    // Pon el ID del canal donde quieres que aparezca ese panel.
-    liveStatus: "1398132225223950469"
+    principal: core.channels.principal,
+    report: core.channels.report,
+    logs: core.channels.logs,
+    liveStatus: core.channels.liveStatus
   },
 
   system: {
-    name: "Ejército Nacional — Sistema de Horas",
+    name: "Ejército Nacional — Servicio",
     footer: "Comando Central de Servicio"
   },
 
   colors: {
-    ui:      "#2d5a27",
-    embed:   "#3b6b34",
-    log:     "#1f2a1a",
-    warning: "#c29d2a",
-    danger:  "#8b1e1e",
-    success: "#4b8b3b"
+    ui:      core.colors.ui,
+    embed:   core.colors.embed,
+    log:     core.colors.log,
+    warning: core.colors.warning,
+    danger:  core.colors.danger,
+    success: core.colors.success
   },
 
   settings: {
@@ -42,16 +35,10 @@ module.exports = {
     weeklyResetMinute: 0
   },
 
-  // ✅ NUEVO: panel en tiempo real
   livePanel: {
     enabled: true,
-
-    // Si es null, se crea el mensaje y se guarda el ID en SQLite (hours_meta)
     messageId: null,
-
-    // Respaldo: refresca cada X segundos
-    refreshSeconds: 30,
-
+    refreshSeconds: 20,
     mentionUsers: true,
     showSince: true
   }

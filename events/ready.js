@@ -3,6 +3,7 @@
 
 const { Routes, REST } = require("discord.js");
 const config = require("../core/config");
+const presence = require("../core/presence");
 
 module.exports = {
     name: "ready",
@@ -10,12 +11,26 @@ module.exports = {
     async execute(bot) {
         console.log(`[READY] 🎖️ Ejército Nacional Bot en línea: ${bot.client.user.tag}`);
 
+        try {
+            presence.start(bot);
+        } catch (err) {
+            console.error("[ERROR] presence:", err);
+        }
+
         // Desplegar UI del módulo HOURS si está activo
         if (bot.modules.hours?.deployUI) {
             try {
                 await bot.modules.hours.deployUI(bot);
             } catch (err) {
                 console.error("[ERROR] deployUI hours:", err);
+            }
+        }
+
+        if (bot.modules.verify?.deployPanel) {
+            try {
+                await bot.modules.verify.deployPanel(bot);
+            } catch (err) {
+                console.error("[ERROR] verify panel:", err);
             }
         }
 
