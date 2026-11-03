@@ -26,11 +26,21 @@ module.exports = {
             }
         }
 
+        // Desplegar panel de verificación
         if (bot.modules.verify?.deployPanel) {
             try {
                 await bot.modules.verify.deployPanel(bot);
             } catch (err) {
                 console.error("[ERROR] verify panel:", err);
+            }
+        }
+
+        // Desplegar panel de ausencias
+        if (bot.modules.absences?.deployPanel) {
+            try {
+                await bot.modules.absences.deployPanel(bot);
+            } catch (err) {
+                console.error("[ERROR] absences panel:", err);
             }
         }
 

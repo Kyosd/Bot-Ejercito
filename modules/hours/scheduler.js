@@ -16,7 +16,7 @@ async function sendAutoBackup(bot) {
 
     const db = bot.db;
     const backupData = {
-      version: "2.0.0",
+      version: "2.1.0",
       type: "AUTOMATED_WEEKLY_BACKUP",
       timestamp: new Date().toISOString(),
       engine: db.type,
@@ -29,6 +29,7 @@ async function sendAutoBackup(bot) {
         soldier_profiles: await db.all("SELECT * FROM soldier_profiles"),
         arrests: await db.all("SELECT * FROM arrests").catch(() => []),
         supplies: await db.all("SELECT * FROM supplies").catch(() => []),
+        absences: await db.all("SELECT * FROM absences").catch(() => []),
         verification_requests: await db.all("SELECT * FROM verification_requests").catch(() => [])
       }
     };

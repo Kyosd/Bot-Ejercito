@@ -23,9 +23,9 @@ module.exports = {
 
         try {
             const backupData = {
-                version: "2.0.0",
+                version: "2.1.0",
                 exported_at: new Date().toISOString(),
-                exported_by: interaction.user.tag,
+                exported_by: interaction.user.tag || interaction.user.username,
                 engine: db.type,
                 data: {
                     hours_active: await db.all("SELECT * FROM hours_active"),
@@ -34,8 +34,11 @@ module.exports = {
                     sanctions: await db.all("SELECT * FROM sanctions"),
                     soldier_warnings: await db.all("SELECT * FROM soldier_warnings"),
                     soldier_profiles: await db.all("SELECT * FROM soldier_profiles"),
-                    convocations: await db.all("SELECT * FROM convocations"),
-                    convocation_attendees: await db.all("SELECT * FROM convocation_attendees")
+                    arrests: await db.all("SELECT * FROM arrests").catch(() => []),
+                    supplies: await db.all("SELECT * FROM supplies").catch(() => []),
+                    absences: await db.all("SELECT * FROM absences").catch(() => []),
+                    convocations: await db.all("SELECT * FROM convocations").catch(() => []),
+                    convocation_attendees: await db.all("SELECT * FROM convocation_attendees").catch(() => [])
                 }
             };
 
@@ -55,7 +58,9 @@ module.exports = {
                     `• **Sesiones de servicio:** \`${backupData.data.hours_sessions.length}\`\n` +
                     `• **Sanciones registradas:** \`${backupData.data.sanctions.length}\`\n` +
                     `• **Expedientes de soldados:** \`${backupData.data.soldier_profiles.length}\`\n` +
-                    `• **Operativos convocados:** \`${backupData.data.convocations.length}\``
+                    `• **Arrestos registrados:** \`${backupData.data.arrests.length}\`\n` +
+                    `• **Abastecimientos:** \`${backupData.data.supplies.length}\`\n` +
+                    `• **Ausencias:** \`${backupData.data.absences.length}\``
                 )
                 .setFooter({ text: "Guarda este archivo en un lugar seguro." })
                 .setTimestamp();

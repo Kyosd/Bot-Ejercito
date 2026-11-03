@@ -17,7 +17,6 @@ Bot profesional y modular para Discord (Discord.js v14) diseñado para el contro
   - Los soldados pueden pausar su servicio táctico (ej. descansos, comida) para no inflar horas AFK falsas. El tiempo en pausa se descuenta automáticamente al salir de turno.
 * **🚨 Corte Marcial Automática:**
   - Al acumular 3/3 advertencias en `/sancionar`, el sistema suspende de inmediato al infractor, lo expulsa de servicio activo y lo bloquea en la base de datos con alerta al Alto Mando.
-* **🎖️ Expedientes Militares (`/expediente` & `/asignarrango`):**
   - Hoja de vida militar completa: rango, división, estado actual, horas semanales, horas históricas, condecoraciones y medallas.
 * **📡 Convocatorias y Llamado a Filas (`/convocatoria`):**
   - Anuncio interactivo de operativos con botones de RSVP en tiempo real (`[✅ Asistiré]`, `[⏳ Retraso]`, `[❌ Ausente]`) y lista de contingente disponible.
@@ -55,7 +54,6 @@ Para que tu base de datos **nunca más se borre al reiniciar el bot**:
 | `/expediente [soldado]` | Todos | Consulta la hoja de vida militar, horas y condecoraciones. |
 | `/sancionar @soldado [razon] [pruebas]` | Mando | Aplica una sanción oficial con cálculo de advertencias y corte marcial. |
 | `/convocatoria [titulo] [fecha] [detalles]` | Mando | Despliega un llamado a filas interactivo con confirmación de asistencia. |
-| `/asignarrango @soldado [rango] [division] [medalla]` | Mando | Actualiza el rango militar y otorga condecoraciones a un soldado. |
 | `/sendcenter #canal` | Mando | Emite comunicados oficiales en nombre del bot (Embed o Texto). |
 | `/backup` | Mando | Genera y descarga un volcado JSON íntegro de la base de datos. |
 

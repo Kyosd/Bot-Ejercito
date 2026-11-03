@@ -280,6 +280,23 @@ class Database {
             );
         `);
 
+        // 7. SISTEMA DE AUSENCIAS / INACTIVIDADES
+        await this.exec(`
+            CREATE TABLE IF NOT EXISTS absences (
+                id ${pkAuto},
+                user_id TEXT NOT NULL,
+                user_tag TEXT NOT NULL,
+                user_name TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                duration TEXT NOT NULL,
+                start_date ${intBig} NOT NULL,
+                end_date ${intBig} DEFAULT NULL,
+                status TEXT DEFAULT 'ACTIVE',
+                created_at ${intBig} NOT NULL,
+                ended_at ${intBig} DEFAULT NULL
+            );
+        `);
+
         console.log("[DATABASE] Esquemas y tablas sincronizadas correctamente.");
     }
 

@@ -118,5 +118,44 @@ module.exports = {
             "DELETE FROM sanctions WHERE soldier_id = ?",
             [soldierId]
         );
+    },
+
+    /**
+     * Sincroniza los 3 roles de advertencia en el servidor según la cantidad de warnings del soldado.
+     */
+    async syncWarningRoles(guild, soldierId, warnings) {
+        if (!guild || !soldierId) return;
+
+        const config = require("./config");
+        const role1Id = config.roleWarning1 || config.warningRoles[0] || null;
+        const role2Id = config.roleWarning2 || config.warningRoles[1] || null;
+        const role3Id = config.roleWarning3 || config.warningRoles[2] || null;
+
+        const warningRoleIds = [role1Id, role2Id, role3Id].filter(Boolean);
+        if (warningRoleIds.length === 0) return;
+
+        const member = await guild.members.fetch(soldierId).catch(() => null);
+        if (!member) return;
+
+        let targetRoleId = null;
+        if (warnings === 1) targetRoleId = role1Id;
+        else if (warnings === 2) targetRoleId = role2Id;
+        else if (warnings >= 3) targetRoleId = role3Id;
+
+        // Quitar los roles de advertencia que no corresponden
+        for (const rId of warningRoleIds) {
+            if (rId !== targetRoleId && member.roles.cache.has(rId)) {
+                await member.roles.remove(rId, "Actualización disciplinaria (advertencias)").catch(err => {
+                    console.warn(`[sanctions] No se pudo remover rol de advertencia ${rId}:`, err.message);
+                });
+            }
+        }
+
+        // Asignar el rol de advertencia correspondiente
+        if (targetRoleId && !member.roles.cache.has(targetRoleId)) {
+            await member.roles.add(targetRoleId, `Sanción militar: ${warnings} advertencia(s)`).catch(err => {
+                console.warn(`[sanctions] No se pudo asignar rol de advertencia ${targetRoleId}:`, err.message);
+            });
+        }
     }
 };

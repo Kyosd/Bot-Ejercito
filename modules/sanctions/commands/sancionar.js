@@ -84,6 +84,13 @@ module.exports = {
         await service.updateWarnings(bot, soldierId, soldierTag, newWarning);
 
         // ============================
+        // SINCRONIZAR ROLES DE ADVERTENCIA EN DISCORD
+        // ============================
+        if (interaction.guild) {
+            await service.syncWarningRoles(interaction.guild, soldierId, newWarning);
+        }
+
+        // ============================
         // CORTE MARCIAL AUTOMÁTICA (3/3 ADVERTENCIAS)
         // ============================
         let isCourtMartial = false;

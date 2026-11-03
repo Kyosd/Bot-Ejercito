@@ -8,7 +8,7 @@ const {
 } = require("discord.js");
 const coreConfig = require("../../../core/config");
 const { getWeekStart } = require("../../../core/week");
-const { rankCodeFor } = require("../../../core/identity");
+const { rankCodeFor, resolveMemberRank } = require("../../../core/identity");
 const config = require("../config");
 
 module.exports = {
@@ -70,6 +70,21 @@ module.exports = {
         }
         const participatingSoldiers = Array.from(soldiersMap.values());
 
+        // CANDADO DE AUSENCIA MILITAR
+        const absenceService = bot.modules?.absences?.service;
+        if (absenceService) {
+            for (const soldier of participatingSoldiers) {
+                const abs = await absenceService.isAbsent(bot, soldier.id);
+                if (abs) {
+                    const isSelf = soldier.id === interaction.user.id;
+                    const msg = isSelf
+                        ? `⛔ **Acceso Denegado:** Cuentas con un reporte de ausencia militar activo (${abs.reason}). No puedes registrar arrestos hasta que te reincorpores.`
+                        : `⛔ **Operación Denegada:** El soldado <@${soldier.id}> tiene un reporte de ausencia militar activo (${abs.reason}) y no puede ser incluido en el operativo.`;
+                    return interaction.editReply({ content: msg });
+                }
+            }
+        }
+
         const now = Date.now();
         const db = bot.db;
         const weekStart = await getWeekStart(db);
@@ -114,7 +129,11 @@ module.exports = {
                 "SELECT display_name, plate, rank, rank_code FROM soldier_profiles WHERE user_id = ?",
                 [soldier.id]
             );
-            const code = profile?.rank_code || rankCodeFor(profile?.rank);
+
+            const member = interaction.guild?.members.cache.get(soldier.id)
+                || await interaction.guild?.members.fetch(soldier.id).catch(() => null);
+            const resolved = resolveMemberRank(member);
+            const code = resolved.code || profile?.rank_code || rankCodeFor(profile?.rank);
 
             // Si tiene placa militar asignada mostrar [PLACA] Nombre Rango, de lo contrario solo su mención única
             const soldierDisplay = profile?.plate

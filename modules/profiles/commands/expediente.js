@@ -4,7 +4,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const coreConfig = require("../../../core/config");
 const { getWeekStart } = require("../../../core/week");
-const { rankCodeFor } = require("../../../core/identity");
+const { resolveMemberRank, resolveMemberDivision, rankCodeFor } = require("../../../core/identity");
 
 function hm(minutes) {
     const n = Math.max(0, Number(minutes) || 0);
@@ -26,29 +26,52 @@ module.exports = {
         const userId = targetUser.id;
         const db = bot.db;
 
+        // Obtener GuildMember para resolver roles de Discord en tiempo real
+        const member = interaction.guild?.members.cache.get(userId)
+            || await interaction.guild?.members.fetch(userId).catch(() => null);
+
+        const resolvedRank = resolveMemberRank(member);
+        const resolvedDivision = resolveMemberDivision(member, "Infantería");
+
         let profile = await db.get("SELECT * FROM soldier_profiles WHERE user_id = ?", [userId]);
         if (!profile) {
             await db.run(
-                "INSERT INTO soldier_profiles (user_id, rank, division, joined_at) VALUES (?, ?, ?, ?)",
-                [userId, "Recluta", "Infantería", Date.now()]
+                "INSERT INTO soldier_profiles (user_id, rank, division, joined_at, medals, rank_code) VALUES (?, ?, ?, ?, '[]', ?)",
+                [userId, resolvedRank.rank, resolvedDivision, Date.now(), resolvedRank.code]
             );
             profile = {
                 user_id: userId,
-                rank: "Recluta",
-                division: "Infantería",
+                rank: resolvedRank.rank,
+                division: resolvedDivision,
                 joined_at: Date.now(),
                 medals: "[]",
                 notes: "",
                 display_name: null,
                 plate: null,
-                rank_code: null,
+                rank_code: resolvedRank.code,
                 verified_at: null
             };
+        } else {
+            // Sincronizar automáticamente en BD si sus roles de Discord cambiaron
+            if (profile.rank !== resolvedRank.rank || profile.rank_code !== resolvedRank.code || profile.division !== resolvedDivision) {
+                await db.run(
+                    "UPDATE soldier_profiles SET rank = ?, rank_code = ?, division = ? WHERE user_id = ?",
+                    [resolvedRank.rank, resolvedRank.code, resolvedDivision, userId]
+                ).catch(() => null);
+                profile.rank = resolvedRank.rank;
+                profile.rank_code = resolvedRank.code;
+                profile.division = resolvedDivision;
+            }
         }
 
+        // Estado del servicio
         const active = await db.get("SELECT * FROM hours_active WHERE user_id = ?", [userId]);
+        const absence = await bot.modules?.absences?.service?.isAbsent(userId).catch(() => null);
+
         let estadoServicio = "⚪ **Libre de Servicio**";
-        if (active) {
+        if (absence) {
+            estadoServicio = `🏖️ **Inactivo / Permiso Militar**\n└ *Motivo:* ${absence.reason} (Retorno: \`${absence.duration}\`)`;
+        } else if (active) {
             if (active.paused_at) {
                 estadoServicio = `⏸️ **En Pausa** (desde <t:${Math.floor(active.paused_at / 1000)}:R>)`;
             } else {
@@ -107,7 +130,10 @@ module.exports = {
             [userId]
         ).catch(() => ({ n: 0 }));
 
-        const code = profile.rank_code || rankCodeFor(profile.rank);
+        const code = resolvedRank.code || profile.rank_code || rankCodeFor(profile.rank);
+        const rankName = resolvedRank.rank || profile.rank || "Recluta";
+        const divisionName = resolvedDivision || profile.division || "Infantería";
+
         const identity = profile.plate
             ? `\`[${profile.plate}] ${profile.display_name || targetUser.username} ${code}\``
             : "`Sin placa — pendiente de verificación`";
@@ -128,8 +154,8 @@ module.exports = {
             .setDescription(`Identidad operativa: ${identity}\n${verified}`)
             .addFields([
                 { name: "👤 Soldado", value: `<@${userId}>`, inline: true },
-                { name: "🔰 Rango", value: `**${profile.rank}** ${code}`, inline: true },
-                { name: "🛡️ División", value: `**${profile.division}**`, inline: true },
+                { name: "🔰 Rango", value: `**${rankName}** ${code}`, inline: true },
+                { name: "🛡️ División", value: `**${divisionName}**`, inline: true },
                 { name: "📡 Estado actual", value: estadoServicio, inline: false },
                 { name: "⏱️ Servicio", value: `• **Semana:** \`${hm(weeklyMinutes)}\`\n• **Histórico:** \`${hm(totalMinutes)}\``, inline: true },
                 { name: "⚖️ Disciplina", value: disciplinario, inline: true },

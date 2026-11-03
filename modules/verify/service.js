@@ -13,7 +13,7 @@ const {
 
 const config = require("./config");
 const coreConfig = require("../../core/config");
-const { rankCodeFor, buildNickname } = require("../../core/identity");
+const { rankCodeFor, buildNickname, resolveMemberRank, resolveMemberDivision } = require("../../core/identity");
 
 async function fetchTextChannel(bot, channelId) {
     if (!channelId) return null;
@@ -145,7 +145,10 @@ module.exports = {
             });
         }
 
-        const previewCode = rankCodeFor(profile?.rank || config.defaultRank);
+        const memberForRank = interaction.member;
+        const resolved = resolveMemberRank(memberForRank);
+        const previewCode = resolved.code;
+
         const embed = new EmbedBuilder()
             .setColor(config.colors.embed)
             .setTitle("📥 Solicitud de verificación")
@@ -153,7 +156,7 @@ module.exports = {
             .setDescription(
                 `**Usuario:** <@${userId}> (\`${userId}\`)\n` +
                 `**Nombre solicitado:** \`${displayName}\`\n` +
-                `**Rango actual:** \`${profile?.rank || config.defaultRank}\` ${previewCode}\n` +
+                `**Rango detectado (roles):** \`${resolved.rank}\` ${previewCode}\n` +
                 `**Vista previa:** \`[????] ${displayName} ${previewCode}\``
             )
             .setFooter({ text: "Solo el Alto Mando puede aprobar o rechazar" })
@@ -233,10 +236,13 @@ module.exports = {
             });
         }
 
+        const resolved = resolveMemberRank(member);
+        const resolvedDivision = resolveMemberDivision(member, config.defaultDivision);
+
         let profile = await db.get("SELECT * FROM soldier_profiles WHERE user_id = ?", [request.user_id]);
-        const rank = profile?.rank || config.defaultRank;
-        const division = profile?.division || config.defaultDivision;
-        const code = profile?.rank_code || rankCodeFor(rank);
+        const rank = resolved.rank || profile?.rank || config.defaultRank;
+        const division = resolvedDivision || profile?.division || config.defaultDivision;
+        const code = resolved.code || profile?.rank_code || rankCodeFor(rank);
         const plate = profile?.plate || await generateUniquePlate(db);
         const now = Date.now();
 
@@ -247,8 +253,9 @@ module.exports = {
             ON CONFLICT(user_id) DO UPDATE SET
                 display_name = excluded.display_name,
                 plate = COALESCE(soldier_profiles.plate, excluded.plate),
-                rank = COALESCE(NULLIF(soldier_profiles.rank, ''), excluded.rank),
-                rank_code = COALESCE(soldier_profiles.rank_code, excluded.rank_code),
+                rank = excluded.rank,
+                division = excluded.division,
+                rank_code = excluded.rank_code,
                 verified_at = excluded.verified_at,
                 verified_by = excluded.verified_by
             `,
@@ -283,7 +290,8 @@ module.exports = {
         if (!profile?.plate || !profile?.display_name) return;
         const member = await guild.members.fetch(userId).catch(() => null);
         if (!member) return;
-        const code = profile.rank_code || rankCodeFor(profile.rank);
+        const resolved = resolveMemberRank(member);
+        const code = resolved.code || profile.rank_code || rankCodeFor(profile.rank);
         const nick = buildNickname(profile.plate, profile.display_name, code);
         await member.setNickname(nick, "Actualización de rango / identidad").catch(() => null);
         return nick;

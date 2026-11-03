@@ -1,43 +1,35 @@
 // modules/sanctions/config.js
+"use strict";
+
+const coreConfig = require("../../core/config");
+
+function getWarningRoles() {
+    if (process.env.WARNING_ROLES_IDS) {
+        return process.env.WARNING_ROLES_IDS.split(",").map(id => id.trim()).filter(Boolean);
+    }
+    return [
+        process.env.ROLE_WARNING_1_ID || null,
+        process.env.ROLE_WARNING_2_ID || null,
+        process.env.ROLE_WARNING_3_ID || null
+    ].filter(Boolean);
+}
 
 module.exports = {
+    // Mandos autorizados (heredados centralizadamente de coreConfig)
+    generals: coreConfig.generals,
 
-    // ===============================================
-    // QUIÉN PUEDE USAR /sancionar
-    // (IDs de usuarios o roles)
-    // ===============================================
-    generals: [ 
-         "1398131944872480890",
-         "1420882354775527484",
-         "1392985835355508766",
-         "1392985835355508766",
-         "1396673898984112168",
-         "434520425288957956",
+    // Canales del sistema disciplinario configurables por .env
+    sanctionsChannel: process.env.CHANNEL_SANCTIONS || coreConfig.channels.sanctions,
+    logsChannel: process.env.CHANNEL_SANCTIONS_LOGS || coreConfig.channels.sanctionsLogs,
 
+    // IDs de los 3 roles para identificar el número de advertencias (1, 2, 3)
+    warningRoles: getWarningRoles(),
+    roleWarning1: process.env.ROLE_WARNING_1_ID || null,
+    roleWarning2: process.env.ROLE_WARNING_2_ID || null,
+    roleWarning3: process.env.ROLE_WARNING_3_ID || null,
 
-        // EJEMPLOS:
-        // "123456789012345678",  // ID de usuario
-        // "987654321098765432"   // ID de rol
-    ],
-
-    // ===============================================
-    // CANALES DEL SISTEMA DE SANCIONES
-    // ===============================================
-    sanctionsChannel: "1518745086031298782",       // Canal donde se publican las sanciones
-    logsChannel: "1444087102701834280",            // Canal donde se envían los logs internos
-
-    /*
-        EJEMPLO:
-
-        sanctionsChannel: "128391273981273981",
-        logsChannel: "129837128937129837",
-    */
-
-    // ===============================================
-    // COLORES DE EMBEDS
-    // ===============================================
     colors: {
-        warning: "#ffaa00",
-        log: "#1e2b3c"
+        warning: coreConfig.colors.warning || "#ffaa00",
+        log: coreConfig.colors.log || "#1e2b3c"
     }
 };

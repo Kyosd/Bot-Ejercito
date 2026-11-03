@@ -27,6 +27,7 @@ module.exports = {
     const db = bot.db;
 
     try {
+      // 1. Candado por Sanción / Corte Marcial
       const blocked = await db.get(
         "SELECT user_id, reason FROM hours_blocked WHERE user_id = ?",
         [userId]
@@ -34,6 +35,15 @@ module.exports = {
       if (blocked) {
         return safeReply(interaction, {
           content: `<:blocked:1565457686806397093> No estás autorizado para entrar en servicio.\n**Motivo:** ${blocked.reason || "Sanción activa o corte marcial."}`,
+          ephemeral: true
+        });
+      }
+
+      // 2. Candado por Ausencia / Inactividad Militar
+      const absence = await bot.modules?.absences?.service?.isAbsent(bot, userId).catch(() => null);
+      if (absence) {
+        return safeReply(interaction, {
+          content: `<:blocked:1565457686806397093> **Acceso Denegado:** Cuentas con un reporte de ausencia militar activo.\n• **Motivo:** ${absence.reason}\n• **Retorno estimado:** \`${absence.duration}\`\n\n*Si ya estás disponible para reincorporarte al servicio activo, pulsa 'Reincorporarme' en el panel de ausencias.*`,
           ephemeral: true
         });
       }

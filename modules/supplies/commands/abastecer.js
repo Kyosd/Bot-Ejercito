@@ -3,6 +3,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const coreConfig = require("../../../core/config");
 const { getWeekStart } = require("../../../core/week");
+const { rankCodeFor, resolveMemberRank } = require("../../../core/identity");
 
 const TIPOS = ["Munición", "Combustible", "Médico", "Equipo", "Carga mixta"];
 
@@ -48,6 +49,18 @@ module.exports = {
             });
         }
 
+        // CANDADO DE AUSENCIA MILITAR
+        const absenceService = bot.modules?.absences?.service;
+        if (absenceService) {
+            const abs = await absenceService.isAbsent(bot, actor.id);
+            if (abs) {
+                const msg = isSelf
+                    ? `⛔ **Acceso Denegado:** Cuentas con un reporte de ausencia militar activo (${abs.reason}). No puedes registrar abastecimientos hasta que te reincorpores.`
+                    : `⛔ **Operación Denegada:** El soldado <@${actor.id}> tiene un reporte de ausencia militar activo (${abs.reason}).`;
+                return interaction.reply({ content: msg, ephemeral: true });
+            }
+        }
+
         const tipo = interaction.options.getString("tipo");
         const cantidad = interaction.options.getInteger("cantidad");
         const evidencia = interaction.options.getAttachment("evidencia");
@@ -84,26 +97,49 @@ module.exports = {
         const weekly = Number(weeklyRow?.n || 0);
         const total = Number(totalRow?.n || 0);
 
-        const profile = await db.get("SELECT display_name, plate FROM soldier_profiles WHERE user_id = ?", [actor.id]);
+        const profile = await db.get("SELECT display_name, plate, rank, rank_code FROM soldier_profiles WHERE user_id = ?", [actor.id]);
+        const member = interaction.guild?.members.cache.get(actor.id)
+            || await interaction.guild?.members.fetch(actor.id).catch(() => null);
+        const resolved = resolveMemberRank(member);
+        const code = resolved.code || profile?.rank_code || rankCodeFor(profile?.rank);
+
         const identity = profile?.plate
-            ? `\`[${profile.plate}] ${profile.display_name || actor.username}\``
+            ? `\`[${profile.plate}] ${profile.display_name || actor.username} ${code}\``
             : `<@${actor.id}>`;
 
         const embed = new EmbedBuilder()
             .setColor(coreConfig.colors.success)
-            .setTitle("📦 Abastecimiento registrado")
-            .setThumbnail(actor.displayAvatarURL({ size: 128 }))
+            .setTitle("📦 ABASTECIMIENTO LOGÍSTICO REGISTRADO")
+            .setThumbnail(actor.displayAvatarURL ? actor.displayAvatarURL({ size: 128 }) : null)
             .addFields(
                 { name: "Soldado", value: `${identity}\n<@${actor.id}>`, inline: true },
-                { name: "Tipo", value: `**${tipo}**`, inline: true },
-                { name: "Carga", value: `**${cantidad}**`, inline: true },
-                { name: "Semanal", value: `**${weekly}**`, inline: true },
-                { name: "Total histórico", value: `**${total}**`, inline: true },
-                { name: "Detalle", value: detalle, inline: false }
+                { name: "Tipo de Carga", value: `**${tipo}**`, inline: true },
+                { name: "Cantidad", value: `**${cantidad}** unidades`, inline: true },
+                { name: "Semanal", value: `**${weekly}** unidades`, inline: true },
+                { name: "Total histórico", value: `**${total}** unidades`, inline: true },
+                { name: "Detalles", value: detalle, inline: false }
             )
             .setImage(evidencia.contentType?.startsWith("image/") ? evidencia.url : null)
-            .setFooter({ text: "Logística de patrullas • Ejército Nacional" })
+            .setFooter({ text: `Registrado por: ${interaction.user.tag || interaction.user.username} • Ejército Nacional` })
             .setTimestamp();
+
+        const targetChannelId = coreConfig.channels.supplies;
+        if (targetChannelId && interaction.guild && targetChannelId !== interaction.channelId) {
+            const targetChannel = interaction.guild.channels.cache.get(targetChannelId)
+                || await interaction.guild.channels.fetch(targetChannelId).catch(() => null);
+
+            if (targetChannel?.isTextBased()) {
+                await targetChannel.send({
+                    embeds: [embed],
+                    files: evidencia.contentType?.startsWith("image/") ? [] : [evidencia]
+                });
+
+                return interaction.reply({
+                    content: `📦 **Abastecimiento registrado con éxito.** Publicado en <#${targetChannel.id}>.`,
+                    ephemeral: true
+                });
+            }
+        }
 
         return interaction.reply({
             embeds: [embed],
