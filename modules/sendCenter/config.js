@@ -12,5 +12,5 @@ module.exports = {
         "434520425288957956"
     ],
 
-    embedColor: "#0f7714"
+    embedColor: "#2d5a27"
 };

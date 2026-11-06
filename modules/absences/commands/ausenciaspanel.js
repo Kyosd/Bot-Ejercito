@@ -19,7 +19,7 @@ module.exports = {
     async execute(bot, interaction) {
         if (!coreConfig.isGeneral(interaction.member)) {
             return interaction.reply({
-                content: "⛔ Solo el Alto Mando militar puede desplegar el panel de ausencias.",
+                content: "<a:warning:1565451290367107092> Solo el Alto Mando militar puede desplegar el panel de ausencias.",
                 ephemeral: true
             });
         }
@@ -30,12 +30,12 @@ module.exports = {
         const sent = await ui.deploy(bot, channel);
         if (!sent) {
             return interaction.editReply({
-                content: "❌ No se pudo desplegar el panel. Verifica los permisos del bot en el canal indicado."
+                content: "<a:warning:1565451290367107092> No se pudo desplegar el panel. Verifica los permisos del bot en el canal indicado."
             });
         }
 
         return interaction.editReply({
-            content: `✅ Panel de ausencias militares desplegado correctamente en <#${channel.id}>.`
+            content: `<a:success:1563959567191244892> Panel de ausencias militares desplegado correctamente en <#${channel.id}>.`
         });
     }
 };

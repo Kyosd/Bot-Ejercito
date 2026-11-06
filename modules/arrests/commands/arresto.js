@@ -78,8 +78,8 @@ module.exports = {
                 if (abs) {
                     const isSelf = soldier.id === interaction.user.id;
                     const msg = isSelf
-                        ? `⛔ **Acceso Denegado:** Cuentas con un reporte de ausencia militar activo (${abs.reason}). No puedes registrar arrestos hasta que te reincorpores.`
-                        : `⛔ **Operación Denegada:** El soldado <@${soldier.id}> tiene un reporte de ausencia militar activo (${abs.reason}) y no puede ser incluido en el operativo.`;
+                        ? `<a:warning:1565451290367107092> **Acceso Denegado:** Cuentas con un reporte de ausencia militar activo (${abs.reason}). No puedes registrar arrestos hasta que te reincorpores.`
+                        : `<a:warning:1565451290367107092> **Operación Denegada:** El soldado <@${soldier.id}> tiene un reporte de ausencia militar activo (${abs.reason}) y no puede ser incluido en el operativo.`;
                     return interaction.editReply({ content: msg });
                 }
             }

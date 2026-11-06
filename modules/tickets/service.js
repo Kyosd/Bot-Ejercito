@@ -13,24 +13,19 @@ const {
 
 const config = require("./config");
 const coreConfig = require("../../core/config");
+const panelManager = require("./panelManager");
 
 module.exports = {
     // ============================================================
     // GESTOR DINÁMICO DE CATEGORÍAS EN DISCORD
-    // Busca la categoría por ID o nombre; si no existe, la crea automáticamente
     // ============================================================
-    async getOrCreateCategory(guild, section, bot) {
-        let categoryName = section.category_name;
-        if (!categoryName) {
-            categoryName = `🎫 TICKETS - ${section.name.toUpperCase()}`;
-        }
-
+    async getOrCreateCategory(guild, categoryName, targetCategoryId = null, roleIds = [], bot = null) {
         let category = null;
 
         // 1. Intentar buscar por ID si ya está guardado
-        if (section.discord_category_id) {
-            category = guild.channels.cache.get(section.discord_category_id) ||
-                await guild.channels.fetch(section.discord_category_id).catch(() => null);
+        if (targetCategoryId) {
+            category = guild.channels.cache.get(targetCategoryId) ||
+                await guild.channels.fetch(targetCategoryId).catch(() => null);
 
             if (category && category.type !== ChannelType.GuildCategory) {
                 category = null;
@@ -38,7 +33,7 @@ module.exports = {
         }
 
         // 2. Si no se encontró por ID, buscar por nombre en el servidor (case-insensitive)
-        if (!category) {
+        if (!category && categoryName) {
             const channels = await guild.channels.fetch().catch(() => guild.channels.cache);
             category = channels.find(
                 c => c && c.type === ChannelType.GuildCategory && c.name.toLowerCase() === categoryName.toLowerCase()
@@ -47,7 +42,7 @@ module.exports = {
 
         // 3. Control de límite de 50 canales por categoría de Discord
         if (category && category.children?.cache?.size >= 50) {
-            const nextName = `${categoryName} 2`;
+            const nextName = `${categoryName || category.name} 2`;
             const channels = await guild.channels.fetch().catch(() => guild.channels.cache);
             let overflowCategory = channels.find(
                 c => c && c.type === ChannelType.GuildCategory && c.name.toLowerCase() === nextName.toLowerCase()
@@ -65,7 +60,7 @@ module.exports = {
                             deny: [PermissionsBitField.Flags.ViewChannel]
                         },
                         {
-                            id: bot.client.user.id,
+                            id: guild.client.user.id,
                             allow: [
                                 PermissionsBitField.Flags.ViewChannel,
                                 PermissionsBitField.Flags.ManageChannels,
@@ -77,15 +72,15 @@ module.exports = {
             }
         }
 
-        // 4. Si la categoría no existe en el servidor, ¡crearla automáticamente!
-        if (!category) {
+        // 4. Si la categoría no existe en el servidor, crearla automáticamente
+        if (!category && categoryName) {
             const overwrites = [
                 {
-                    id: guild.id, // @everyone oculto para privacidad
+                    id: guild.id, // @everyone oculto
                     deny: [PermissionsBitField.Flags.ViewChannel]
                 },
                 {
-                    id: bot.client.user.id,
+                    id: guild.client.user.id,
                     allow: [
                         PermissionsBitField.Flags.ViewChannel,
                         PermissionsBitField.Flags.ManageChannels,
@@ -94,21 +89,23 @@ module.exports = {
                 }
             ];
 
-            // Si la sección tiene un rol militar asignado, darle acceso a la categoría
-            if (section.role_id && guild.roles.cache.has(section.role_id)) {
-                overwrites.push({
-                    id: section.role_id,
-                    allow: [
-                        PermissionsBitField.Flags.ViewChannel,
-                        PermissionsBitField.Flags.SendMessages,
-                        PermissionsBitField.Flags.ReadMessageHistory
-                    ]
-                });
+            // Roles específicos de atención
+            for (const rId of (roleIds || [])) {
+                if (guild.roles.cache.has(rId) || await guild.roles.fetch(rId).catch(() => null)) {
+                    overwrites.push({
+                        id: rId,
+                        allow: [
+                            PermissionsBitField.Flags.ViewChannel,
+                            PermissionsBitField.Flags.SendMessages,
+                            PermissionsBitField.Flags.ReadMessageHistory
+                        ]
+                    });
+                }
             }
 
-            // Roles de generales / alto mando
+            // Roles generales de alto mando
             for (const rId of (coreConfig.generals || [])) {
-                if (guild.roles.cache.has(rId)) {
+                if (guild.roles.cache.has(rId) || await guild.roles.fetch(rId).catch(() => null)) {
                     overwrites.push({
                         id: rId,
                         allow: [
@@ -129,157 +126,86 @@ module.exports = {
             console.log(`[tickets] ✅ Categoría de Discord creada automáticamente: "${categoryName}" (${category.id})`);
         }
 
-        // 5. Actualizar discord_category_id en la base de datos para futuras consultas rápidas
-        if (category && section.id && section.discord_category_id !== category.id) {
-            await bot.db.run(
-                "UPDATE ticket_sections SET discord_category_id = ? WHERE id = ?",
-                [category.id, section.id]
-            ).catch(() => null);
-            section.discord_category_id = category.id;
-        }
-
         return category;
     },
 
     // ============================================================
-    // GESTIÓN DE SECCIONES DE TICKETS PERSONALIZADAS (DESDE MODAL)
+    // CREAR TICKET DESDE PANEL DINÁMICO INSTITUCIONAL (V2)
     // ============================================================
-    async handleSectionModalSubmit(bot, interaction, draft) {
-        const guild = interaction.guild;
-        const panelChannel = guild.channels.cache.get(draft.panelChannelId) ||
-            await guild.channels.fetch(draft.panelChannelId).catch(() => null);
-
-        if (!panelChannel || !panelChannel.isTextBased()) {
-            return interaction.reply({
-                content: "❌ Error: El canal designado para publicar el panel no existe o no es de texto.",
-                ephemeral: true
-            });
-        }
-
-        const title = interaction.fields.getTextInputValue("modal_title");
-        const description = interaction.fields.getTextInputValue("modal_desc");
-        const imageUrl = interaction.fields.getTextInputValue("modal_image")?.trim() || null;
-        const thumbUrl = interaction.fields.getTextInputValue("modal_thumb")?.trim() || null;
-        const buttonLabel = interaction.fields.getTextInputValue("modal_button")?.trim() || "Abrir Ticket";
-
-        const db = bot.db;
-
-        // 1. Obtener o crear la categoría de Discord INMEDIATAMENTE para asegurar su ID
-        const discordCategory = await this.getOrCreateCategory(guild, draft, bot);
-
-        // 2. Guardar en base de datos la sección
-        await db.run(
-            `
-            INSERT INTO ticket_sections 
-            (name, category_name, panel_channel_id, discord_category_id, role_id, button_label, button_emoji, embed_title, embed_description, embed_image, embed_thumbnail, created_by, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-            [
-                draft.name,
-                draft.categoryName,
-                panelChannel.id,
-                discordCategory.id,
-                draft.roleId,
-                buttonLabel,
-                title,
-                description,
-                imageUrl,
-                thumbUrl,
-                interaction.user.id,
-                Date.now()
-            ]
-        );
-
-        // Obtener ID de la sección
-        const sectionRow = await db.get(
-            "SELECT id FROM ticket_sections WHERE panel_channel_id = ? ORDER BY id DESC LIMIT 1",
-            [panelChannel.id]
-        );
-        const sectionId = sectionRow ? sectionRow.id : 1;
-
-        // 2. Construir el Embed Decorado
-        const embed = new EmbedBuilder()
-            .setColor(coreConfig.colors.militaryGold || "#d4af37")
-            .setTitle(title)
-            .setDescription(description)
-            .setFooter({ text: `Sección: ${draft.name} • Categoría: ${draft.categoryName}` })
-            .setTimestamp();
-
-        if (imageUrl && (imageUrl.startsWith("http://") || imageUrl.startsWith("https://"))) {
-            embed.setImage(imageUrl);
-        }
-
-        if (thumbUrl && (thumbUrl.startsWith("http://") || thumbUrl.startsWith("https://"))) {
-            embed.setThumbnail(thumbUrl);
-        }
-
-        // 3. Botón para abrir ticket vinculado a esta sección
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(`TICK_OPEN_SEC_${sectionId}`)
-                .setLabel(buttonLabel)
-                .setEmoji("📩")
-                .setStyle(ButtonStyle.Primary)
-        );
-
-        // 4. Enviar el panel al canal correspondiente
-        const sentMessage = await panelChannel.send({ embeds: [embed], components: [row] });
-        await db.run("UPDATE ticket_sections SET panel_message_id = ? WHERE id = ?", [sentMessage.id, sectionId]);
-
-        return interaction.reply({
-            content: `✅ **¡Sección de tickets configurada con éxito!**\n\n` +
-                `• **Sección:** \`${draft.name}\`\n` +
-                `• **Panel Publicado en:** <#${panelChannel.id}>\n` +
-                `• **Categoría de Destino:** \`${draft.categoryName}\` *(se buscará o creará automáticamente al abrirse el primer ticket)*\n` +
-                `• **Rol Asignado:** ${draft.roleId ? `<@&${draft.roleId}>` : "*General / Mando*"}\n\n` +
-                `Los usuarios ya pueden pulsar el botón para abrir tickets organizados.`,
-            ephemeral: true
-        });
-    },
-
-    // ============================================================
-    // ABRIR TICKET DESDE BOTÓN DE SECCIÓN PERSONALIZADA
-    // ============================================================
-    async openSectionTicket(bot, interaction, sectionId) {
+    async createDynamicTicket(bot, interaction, optionId, formResponses = []) {
         const guild = interaction.guild;
         const user = interaction.user;
         const db = bot.db;
 
-        const section = await db.get("SELECT * FROM ticket_sections WHERE id = ?", [sectionId]);
-        if (!section) {
+        const option = await panelManager.getOptionById(bot, optionId);
+        if (!option || option.status !== "ACTIVE") {
             return interaction.reply({
-                content: "❌ Error: La configuración de esta sección de tickets no se encuentra en el sistema.",
+                content: "❌ Esta opción de atención ya no se encuentra activa o no existe.",
                 ephemeral: true
             });
         }
 
-        // 1. Anti-spam: Verificar si el usuario ya tiene un ticket abierto en esta sección
-        const openTicket = await db.get(
-            "SELECT channel_id FROM tickets WHERE user_id = ? AND category = ? AND status = 'OPEN'",
-            [user.id, section.name]
+        const panel = await panelManager.getPanelById(bot, option.panel_id);
+        if (!panel || panel.status !== "ACTIVE") {
+            return interaction.reply({
+                content: "❌ El panel de atención al que pertenece esta opción está desactivado temporalmente.",
+                ephemeral: true
+            });
+        }
+
+        // 1. Control de límite de tickets abiertos por usuario para esta opción
+        const limit = option.ticket_limit || 1;
+        const openTickets = await db.all(
+            "SELECT id, channel_id FROM tickets WHERE user_id = ? AND option_id = ? AND status = 'OPEN'",
+            [user.id, option.id]
         );
 
-        if (openTicket) {
-            const existingChannel = guild.channels.cache.get(openTicket.channel_id) ||
-                await guild.channels.fetch(openTicket.channel_id).catch(() => null);
-
-            if (existingChannel) {
-                return interaction.reply({
-                    content: `⛔ Ya tienes un ticket abierto en la sección **${section.name}**: <#${existingChannel.id}>. Por favor resuélvelo antes de abrir otro.`,
-                    ephemeral: true
-                });
+        // Validar canales existentes
+        let realOpenCount = 0;
+        for (const t of openTickets) {
+            const exists = guild.channels.cache.get(t.channel_id) || await guild.channels.fetch(t.channel_id).catch(() => null);
+            if (exists) {
+                realOpenCount++;
             } else {
-                await db.run("UPDATE tickets SET status = 'CLOSED' WHERE channel_id = ?", [openTicket.channel_id]);
+                await db.run("UPDATE tickets SET status = 'CLOSED' WHERE id = ?", [t.id]);
             }
         }
 
-        // 2. Obtener o crear automáticamente la categoría en Discord
-        const discordCategory = await this.getOrCreateCategory(guild, section, bot);
+        if (realOpenCount >= limit) {
+            return interaction.reply({
+                content: `⛔ Ya tienes **${realOpenCount} ticket(s) abierto(s)** en la sección de **${option.name}** (Límite permitido: ${limit}). Por favor resuelve tus solicitudes activas antes de abrir otra.`,
+                ephemeral: true
+            });
+        }
 
-        // 3. Permisos aislados para el canal del ticket
+        // 2. Determinar categoría de Discord (Prioridad: Opción -> Panel -> General)
+        const targetCatId = option.discord_category_id || panel.default_category_id || config.categoryId;
+        const categoryName = `🎫 TICKETS - ${option.name.toUpperCase()}`;
+
+        // Obtener roles autorizados específicos de la opción
+        let optionRoles = [];
+        try {
+            optionRoles = JSON.parse(option.roles || "[]");
+        } catch (_) {}
+
+        // Si la opción no tiene roles propios, hereda los roles por defecto del panel
+        if (optionRoles.length === 0) {
+            try {
+                optionRoles = JSON.parse(panel.default_roles || "[]");
+            } catch (_) {}
+        }
+
+        // Si aún así no hay roles, usar los generales del sistema
+        if (optionRoles.length === 0) {
+            optionRoles = config.supportRoles || [];
+        }
+
+        const discordCategory = await this.getOrCreateCategory(guild, categoryName, targetCatId, optionRoles, bot);
+
+        // 3. Configurar permisos del canal privado
         const overwrites = [
             {
-                id: guild.id, // @everyone oculto
+                id: guild.id, // @everyone oculto para privacidad
                 deny: [PermissionsBitField.Flags.ViewChannel]
             },
             {
@@ -288,13 +214,14 @@ module.exports = {
                     PermissionsBitField.Flags.ViewChannel,
                     PermissionsBitField.Flags.SendMessages,
                     PermissionsBitField.Flags.ManageChannels,
+                    PermissionsBitField.Flags.ManageRoles,
                     PermissionsBitField.Flags.AttachFiles,
                     PermissionsBitField.Flags.EmbedLinks,
                     PermissionsBitField.Flags.ReadMessageHistory
                 ]
             },
             {
-                id: user.id,
+                id: user.id, // Solicitante
                 allow: [
                     PermissionsBitField.Flags.ViewChannel,
                     PermissionsBitField.Flags.SendMessages,
@@ -305,23 +232,9 @@ module.exports = {
             }
         ];
 
-        // Añadir rol específico de la sección si existe
-        if (section.role_id && guild.roles.cache.has(section.role_id)) {
-            overwrites.push({
-                id: section.role_id,
-                allow: [
-                    PermissionsBitField.Flags.ViewChannel,
-                    PermissionsBitField.Flags.SendMessages,
-                    PermissionsBitField.Flags.AttachFiles,
-                    PermissionsBitField.Flags.EmbedLinks,
-                    PermissionsBitField.Flags.ReadMessageHistory
-                ]
-            });
-        }
-
-        // Añadir roles generales de mando
-        for (const roleId of (coreConfig.generals || [])) {
-            if (guild.roles.cache.has(roleId)) {
+        // Roles de atención específicos de la opción (AISLADOS DE OTRAS DIVISIONES)
+        for (const roleId of optionRoles) {
+            if (guild.roles.cache.has(roleId) || await guild.roles.fetch(roleId).catch(() => null)) {
                 overwrites.push({
                     id: roleId,
                     allow: [
@@ -335,47 +248,104 @@ module.exports = {
             }
         }
 
-        // 4. Crear el canal dentro de la categoría específica de Discord
-        const cleanUsername = user.username.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10);
-        const cleanSection = section.name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8);
-        const channelName = `${cleanSection}-${cleanUsername}`;
+        // Supervisión de Alto Mando / Generales
+        for (const rId of (coreConfig.generals || [])) {
+            if (!optionRoles.includes(rId) && (guild.roles.cache.has(rId) || await guild.roles.fetch(rId).catch(() => null))) {
+                overwrites.push({
+                    id: rId,
+                    allow: [
+                        PermissionsBitField.Flags.ViewChannel,
+                        PermissionsBitField.Flags.SendMessages,
+                        PermissionsBitField.Flags.AttachFiles,
+                        PermissionsBitField.Flags.EmbedLinks,
+                        PermissionsBitField.Flags.ReadMessageHistory
+                    ]
+                });
+            }
+        }
 
+        // 4. Nombre del canal
+        const cleanPrefix = (option.prefix || "ticket-").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 10);
+        const cleanUsername = user.username.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10);
+        const ticketCounterRow = await db.get("SELECT COUNT(*) AS total FROM tickets");
+        const nextNum = String((ticketCounterRow?.total || 0) + 1).padStart(3, "0");
+        const channelName = `${cleanPrefix}${cleanUsername}-${nextNum}`.slice(0, 32);
+
+        // 5. Crear el canal privado en Discord
         const channel = await guild.channels.create({
             name: channelName,
             type: ChannelType.GuildText,
             parent: discordCategory ? discordCategory.id : undefined,
             permissionOverwrites: overwrites,
-            topic: `Ticket de ${user.tag} (${user.id}) | Sección: ${section.name}`
+            topic: `Ticket de ${user.tag} (${user.id}) | Panel: ${panel.name} | Opción: ${option.name}`
         });
 
-        // 5. Registrar ticket en base de datos
+        // 6. Registrar ticket en SQLite
+        const now = Date.now();
         await db.run(
             `
-            INSERT INTO tickets (channel_id, user_id, category, status, created_at)
-            VALUES (?, ?, ?, 'OPEN', ?)
-        `,
-            [channel.id, user.id, section.name, Date.now()]
+            INSERT INTO tickets (channel_id, user_id, category, panel_id, option_id, option_name, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?)
+            `,
+            [channel.id, user.id, option.name, panel.id, option.id, option.name, now]
         );
 
-        // 6. Enviar mensaje de bienvenida y controles tácticos
-        const welcomeEmbed = new EmbedBuilder()
-            .setColor(config.colors.embed)
-            .setTitle(section.embed_title)
-            .setDescription(
-                `Bienvenido <@${user.id}> al departamento oficial de **${section.name}**.\n\n` +
-                `Un oficial encargado atenderá tu caso en breve.\n\n` +
-                `• **Solicitante:** <@${user.id}> (\`${user.id}\`)\n` +
-                `• **Departamento:** \`${section.name}\`\n` +
-                `• **Categoría Asignada:** \`${discordCategory.name}\`\n` +
-                `• **Fecha de Apertura:** <t:${Math.floor(Date.now() / 1000)}:F>`
-            )
-            .setFooter({ text: "Sistema de Atención Militar • Ejército Nacional" })
-            .setTimestamp();
+        const newTicketRow = await db.get("SELECT id FROM tickets WHERE channel_id = ?", [channel.id]);
+        const ticketId = newTicketRow ? newTicketRow.id : 0;
 
-        if (section.embed_thumbnail) {
-            welcomeEmbed.setThumbnail(section.embed_thumbnail);
+        // 7. Guardar respuestas del formulario en SQLite si las hubo
+        if (formResponses.length > 0) {
+            await panelManager.saveResponses(bot, ticketId, formResponses);
         }
 
+        // 8. Construir mensaje inicial con variables dinámicas
+        let welcomeText = option.welcome_message || `Bienvenido <@${user.id}> a la sección de **${option.name}**.\nUn encargado atenderá tu caso en breve.`;
+        welcomeText = welcomeText
+            .replace(/{user}/g, `<@${user.id}>`)
+            .replace(/{panel}/g, panel.name)
+            .replace(/{option}/g, option.name)
+            .replace(/{ticket}/g, `#${channel.name}`)
+            .replace(/{id}/g, String(ticketId));
+
+        const welcomeEmbed = new EmbedBuilder()
+            .setColor(panel.embed_color || config.colors.embed)
+            .setTitle(`${option.emoji || "🎫"} ${option.name} — Atención Institucional`)
+            .setDescription(
+                `${welcomeText}\n\n` +
+                `• **Solicitante:** <@${user.id}> (\`${user.id}\`)\n` +
+                `• **Panel:** \`${panel.name}\`\n` +
+                `• **Sección:** \`${option.name}\`\n` +
+                `• **Categoría:** \`${discordCategory ? discordCategory.name : "General"}\`\n` +
+                `• **Fecha de Apertura:** <t:${Math.floor(now / 1000)}:F>`
+            )
+            .setFooter({ text: "Sistema Institucional de Atención • Ejército Nacional" })
+            .setTimestamp();
+
+        if (panel.embed_thumbnail) {
+            welcomeEmbed.setThumbnail(panel.embed_thumbnail);
+        }
+
+        // Presentar respuestas del formulario en un embed complementario
+        const embedsToSend = [welcomeEmbed];
+
+        if (formResponses.length > 0) {
+            const formEmbed = new EmbedBuilder()
+                .setColor(coreConfig.colors?.militaryGold || "#d4af37")
+                .setTitle("📝 Información del Formulario Registrado")
+                .setDescription("Datos proporcionados por el solicitante al momento de la apertura:")
+                .addFields(
+                    formResponses.map(r => ({
+                        name: `🔹 ${r.field_label}`.slice(0, 256),
+                        value: (r.response_value || "*Sin respuesta*").slice(0, 1024),
+                        inline: false
+                    }))
+                )
+                .setFooter({ text: `Formulario registrado • Ticket #${ticketId}` });
+
+            embedsToSend.push(formEmbed);
+        }
+
+        // Botones de gestión del ticket
         const actionRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId("TICK_CLOSE")
@@ -396,156 +366,21 @@ module.exports = {
                 .setStyle(ButtonStyle.Secondary)
         );
 
+        // Menciones a roles autorizados y solicitante
         const mentions = [
             user.toString(),
-            section.role_id ? `<@&${section.role_id}>` : ""
+            ...optionRoles.map(r => `<@&${r}>`)
         ].filter(Boolean).join(" ");
 
-        await channel.send({ content: mentions, embeds: [welcomeEmbed], components: [actionRow] });
+        await channel.send({ content: mentions, embeds: embedsToSend, components: [actionRow] });
 
-        return interaction.reply({
-            content: `✅ **Ticket generado con éxito:** Dirígete a <#${channel.id}> (organizado en la categoría **${discordCategory.name}**).`,
-            ephemeral: true
-        });
-    },
+        const confirmText = `✅ **Ticket creado exitosamente:** Dirígete a <#${channel.id}> para ser atendido en la sección de **${option.name}**.`;
 
-    // ============================================================
-    // CREAR TICKET DESDE SELECT MENU GENERAL (LEGACY / MULTI-CAT)
-    // ============================================================
-    async createTicket(bot, interaction, categoryId) {
-        const guild = interaction.guild;
-        const user = interaction.user;
-        const db = bot.db;
-
-        const openTickets = await db.all(
-            "SELECT channel_id FROM tickets WHERE user_id = ? AND status = 'OPEN'",
-            [user.id]
-        );
-
-        for (const t of openTickets) {
-            const existingChannel = guild.channels.cache.get(t.channel_id) || await guild.channels.fetch(t.channel_id).catch(() => null);
-            if (existingChannel) {
-                return interaction.reply({
-                    content: `⛔ Ya tienes un ticket activo en este momento: <#${existingChannel.id}>. Por favor ciérralo antes de abrir uno nuevo.`,
-                    ephemeral: true
-                });
-            } else {
-                await db.run("UPDATE tickets SET status = 'CLOSED' WHERE channel_id = ?", [t.channel_id]);
-            }
+        if (interaction.replied || interaction.deferred) {
+            return interaction.followUp({ content: confirmText, ephemeral: true });
+        } else {
+            return interaction.reply({ content: confirmText, ephemeral: true });
         }
-
-        const catConfig = config.categories.find(c => c.id === categoryId) || config.categories[0];
-
-        // Buscar o crear categoría para este tipo
-        const fakeSection = {
-            name: catConfig.label,
-            category_name: `🎫 TICKETS - ${catConfig.label.toUpperCase()}`,
-            discord_category_id: config.categoryId || null
-        };
-        const discordCategory = await this.getOrCreateCategory(guild, fakeSection, bot);
-
-        const overwrites = [
-            {
-                id: guild.id,
-                deny: [PermissionsBitField.Flags.ViewChannel]
-            },
-            {
-                id: bot.client.user.id,
-                allow: [
-                    PermissionsBitField.Flags.ViewChannel,
-                    PermissionsBitField.Flags.SendMessages,
-                    PermissionsBitField.Flags.ManageChannels,
-                    PermissionsBitField.Flags.AttachFiles,
-                    PermissionsBitField.Flags.EmbedLinks,
-                    PermissionsBitField.Flags.ReadMessageHistory
-                ]
-            },
-            {
-                id: user.id,
-                allow: [
-                    PermissionsBitField.Flags.ViewChannel,
-                    PermissionsBitField.Flags.SendMessages,
-                    PermissionsBitField.Flags.AttachFiles,
-                    PermissionsBitField.Flags.EmbedLinks,
-                    PermissionsBitField.Flags.ReadMessageHistory
-                ]
-            }
-        ];
-
-        const rolesToGrant = new Set([...(config.supportRoles || []), ...(catConfig.pingRoles || [])]);
-        for (const roleId of rolesToGrant) {
-            if (guild.roles.cache.has(roleId)) {
-                overwrites.push({
-                    id: roleId,
-                    allow: [
-                        PermissionsBitField.Flags.ViewChannel,
-                        PermissionsBitField.Flags.SendMessages,
-                        PermissionsBitField.Flags.AttachFiles,
-                        PermissionsBitField.Flags.EmbedLinks,
-                        PermissionsBitField.Flags.ReadMessageHistory
-                    ]
-                });
-            }
-        }
-
-        const cleanUsername = user.username.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10);
-        const channelName = `${catConfig.channelPrefix}${cleanUsername}`;
-
-        const channel = await guild.channels.create({
-            name: channelName,
-            type: ChannelType.GuildText,
-            parent: discordCategory ? discordCategory.id : undefined,
-            permissionOverwrites: overwrites,
-            topic: `Ticket de ${user.tag} (${user.id}) | Categoría: ${catConfig.label}`
-        });
-
-        await db.run(
-            `
-            INSERT INTO tickets (channel_id, user_id, category, status, created_at)
-            VALUES (?, ?, ?, 'OPEN', ?)
-        `,
-            [channel.id, user.id, catConfig.id, Date.now()]
-        );
-
-        const welcomeEmbed = new EmbedBuilder()
-            .setColor(config.colors.embed)
-            .setTitle(catConfig.welcomeTitle)
-            .setDescription(
-                `${catConfig.welcomeMessage}\n\n` +
-                `👤 **Solicitante:** <@${user.id}> (\`${user.id}\`)\n` +
-                `📁 **Categoría:** \`${catConfig.label}\`\n` +
-                `📅 **Fecha de apertura:** <t:${Math.floor(Date.now() / 1000)}:F>`
-            )
-            .setFooter({ text: "Sistema de Atención Militar • Ejército Nacional" })
-            .setTimestamp();
-
-        const actionRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId("TICK_CLOSE")
-                .setLabel("Cerrar Ticket")
-                .setEmoji("🔒")
-                .setStyle(ButtonStyle.Danger),
-
-            new ButtonBuilder()
-                .setCustomId("TICK_CLAIM")
-                .setLabel("Reclamar Atención")
-                .setEmoji("👤")
-                .setStyle(ButtonStyle.Success),
-
-            new ButtonBuilder()
-                .setCustomId("TICK_TRANSCRIPT")
-                .setLabel("Transcripción")
-                .setEmoji("📋")
-                .setStyle(ButtonStyle.Secondary)
-        );
-
-        const mentions = [user.toString(), ...Array.from(rolesToGrant).map(r => `<@&${r}>`)].join(" ");
-        await channel.send({ content: mentions, embeds: [welcomeEmbed], components: [actionRow] });
-
-        return interaction.reply({
-            content: `✅ **Ticket creado exitosamente:** Ve a tu canal asignado en <#${channel.id}> (en la categoría **${discordCategory.name}**).`,
-            ephemeral: true
-        });
     },
 
     // ============================================================
@@ -624,10 +459,10 @@ module.exports = {
             components: []
         });
 
-        // 1. Generar transcripción
+        // 1. Generar transcripción completa
         const transcriptAttachment = await this.generateTranscript(channel, ticket);
 
-        // 2. Registrar en DB
+        // 2. Registrar cierre en DB
         const now = Date.now();
         if (ticket) {
             await db.run(
@@ -649,13 +484,13 @@ module.exports = {
                     .setDescription(
                         `• **Canal:** \`#${channel.name}\`\n` +
                         `• **Solicitante:** ${ticket ? `<@${ticket.user_id}> (\`${ticket.user_id}\`)` : "N/A"}\n` +
-                        `• **Categoría:** \`${ticket ? ticket.category : "General"}\`\n` +
+                        `• **Sección / Opción:** \`${ticket ? (ticket.option_name || ticket.category) : "General"}\`\n` +
                         `• **Atendido por:** ${ticket?.claimed_by ? `<@${ticket.claimed_by}>` : "*Sin reclamar*"}\n` +
                         `• **Cerrado por:** <@${interaction.user.id}>\n` +
                         `• **Motivo:** ${reason}\n` +
                         `• **Fecha:** <t:${Math.floor(now / 1000)}:F>`
                     )
-                    .setFooter({ text: "Archivo y Transcripciones de Tickets" })
+                    .setFooter({ text: "Archivo y Transcripciones de Tickets • Ejército Nacional" })
                     .setTimestamp();
 
                 await logChannel.send({ embeds: [logEmbed], files: [transcriptAttachment] }).catch(() => null);
@@ -670,7 +505,7 @@ module.exports = {
                     const dmEmbed = new EmbedBuilder()
                         .setColor(config.colors.embed)
                         .setTitle("📋 Copia de tu Ticket Militar")
-                        .setDescription(`Tu ticket en **${interaction.guild.name}** ha sido cerrado. Adjuntamos la transcripción completa para tu respaldo.`);
+                        .setDescription(`Tu ticket en **${interaction.guild.name}** (\`#${channel.name}\`) ha sido cerrado. Adjuntamos la transcripción completa para tu respaldo.`);
                     await targetUser.send({ embeds: [dmEmbed], files: [transcriptAttachment] }).catch(() => null);
                 }
             } catch (_) {}
@@ -710,14 +545,10 @@ module.exports = {
         text += `Fecha de exportación: ${new Date().toLocaleString("es-ES")}\n`;
         if (ticket) {
             text += `Solicitante ID: ${ticket.user_id}\n`;
-            text += `Categoría: ${ticket.category}\n`;
+            text += `Sección / Categoría: ${ticket.option_name || ticket.category}\n`;
             text += `Reclamado por ID: ${ticket.claimed_by || "Ninguno"}\n`;
         }
         text += "========================================================\n\n";
-
-        if (!messages.length) {
-            text += "(No se pudieron leer mensajes. Activa el Privileged Intent Message Content en el portal de Discord y el permiso Leer historial.)\n";
-        }
 
         for (const msg of messages) {
             const time = new Date(msg.createdTimestamp).toLocaleString("es-ES");
@@ -741,7 +572,7 @@ module.exports = {
                 bodyParts.push(`[Embed]: ${msg.embeds.map(e => e.title || e.description || e.author?.name || "(embed)").join(" | ")}`);
             }
             if (!bodyParts.length) {
-                bodyParts.push("(sin texto — revisa Message Content Intent si es un usuario)");
+                bodyParts.push("(mensaje sin texto)");
             }
 
             text += `[${time}] ${author}:\n${bodyParts.join("\n")}\n\n`;

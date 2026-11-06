@@ -26,7 +26,7 @@ module.exports = {
     async execute(bot, interaction) {
         if (!coreConfig.isGeneral(interaction.member)) {
             return interaction.reply({
-                content: "⛔ No tienes autorización del Alto Mando para desplegar el panel de tickets.",
+                content: "<:forbidden:1568246186702274733> No tienes autorización del Alto Mando para desplegar el panel de tickets.",
                 ephemeral: true
             });
         }
@@ -42,12 +42,12 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setColor(ticketConfig.colors.embed)
-            .setTitle("🎫 Centro de Atención y Soporte Militar")
+            .setTitle("<:tickets:1567998576641056900> Centro de Atención y Soporte Militar")
             .setDescription(
                 "Bienvenido al canal oficial de solicitudes y asistencia del **Ejército Nacional**.\n\n" +
                 "Selecciona en el menú desplegable inferior el departamento o motivo por el cual deseas contactar a nuestro personal de guardia:\n\n" +
                 ticketConfig.categories.map(c => `${c.emoji} **${c.label}**\n*${c.description}*`).join("\n\n") +
-                "\n\n⚠️ *Evita abrir tickets sin justificación. Todo abuso del sistema será sancionado.*"
+                "\n\n<a:alert:1565453809038262432> *Evita abrir tickets sin justificación. Todo abuso del sistema será sancionado.*"
             )
             .setFooter({ text: "Comando Central de Guardia • Atención Personalizada" })
             .setTimestamp();
@@ -62,7 +62,7 @@ module.exports = {
         await targetChannel.send({ embeds: [embed], components: [row] });
 
         return interaction.reply({
-            content: `✅ Panel de tickets desplegado exitosamente en <#${targetChannel.id}>.`,
+            content: `<a:check:1563959567191244892> Panel de tickets desplegado exitosamente en <#${targetChannel.id}>.`,
             ephemeral: true
         });
     }

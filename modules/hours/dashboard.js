@@ -105,7 +105,7 @@ async function buildControlPayload(bot) {
         )
         .addFields(
             {
-                name: `👥 Guardia actual · ${roster.rows.length}`,
+                name: `<a:online:1565448013218848949> Guardia actual · ${roster.rows.length}`,
                 value: roster.text.slice(0, 1024),
                 inline: false
             },

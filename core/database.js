@@ -193,6 +193,94 @@ class Database {
             );
         `);
 
+        // 5.1 NUEVAS TABLAS DE PANELES DINÁMICOS INSTITUCIONALES (V2)
+        await this.exec(`
+            CREATE TABLE IF NOT EXISTS ticket_panels (
+                id ${pkAuto},
+                custom_id TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                channel_id TEXT DEFAULT NULL,
+                message_id TEXT DEFAULT NULL,
+                default_category_id TEXT DEFAULT NULL,
+                embed_title TEXT DEFAULT 'Atención Institucional',
+                embed_description TEXT DEFAULT 'Selecciona una opción del menú desplegable para abrir un ticket.',
+                embed_color TEXT DEFAULT '#2d5a27',
+                embed_image TEXT DEFAULT NULL,
+                embed_thumbnail TEXT DEFAULT NULL,
+                embed_footer TEXT DEFAULT 'Sistema Institucional de Atención',
+                default_roles TEXT DEFAULT '[]',
+                status TEXT DEFAULT 'ACTIVE',
+                created_by TEXT DEFAULT NULL,
+                created_at ${intBig} NOT NULL,
+                updated_at ${intBig} NOT NULL
+            );
+        `);
+
+        await this.exec(`
+            CREATE TABLE IF NOT EXISTS ticket_options (
+                id ${pkAuto},
+                panel_id INTEGER NOT NULL,
+                custom_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                emoji TEXT DEFAULT '🎫',
+                prefix TEXT DEFAULT 'ticket-',
+                discord_category_id TEXT DEFAULT NULL,
+                roles TEXT DEFAULT '[]',
+                welcome_message TEXT DEFAULT '',
+                ticket_limit INTEGER DEFAULT 1,
+                status TEXT DEFAULT 'ACTIVE',
+                created_at ${intBig} NOT NULL,
+                updated_at ${intBig} NOT NULL,
+                UNIQUE (panel_id, custom_id)
+            );
+        `);
+
+        await this.exec(`
+            CREATE TABLE IF NOT EXISTS ticket_forms (
+                id ${pkAuto},
+                option_id INTEGER UNIQUE NOT NULL,
+                title TEXT DEFAULT 'Formulario de Atención',
+                description TEXT DEFAULT '',
+                created_at ${intBig} NOT NULL,
+                updated_at ${intBig} NOT NULL
+            );
+        `);
+
+        await this.exec(`
+            CREATE TABLE IF NOT EXISTS ticket_form_fields (
+                id ${pkAuto},
+                form_id INTEGER NOT NULL,
+                custom_id TEXT NOT NULL,
+                label TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                field_type TEXT DEFAULT 'SHORT',
+                placeholder TEXT DEFAULT '',
+                required INTEGER DEFAULT 1,
+                min_length INTEGER DEFAULT NULL,
+                max_length INTEGER DEFAULT NULL,
+                field_order INTEGER DEFAULT 0,
+                UNIQUE (form_id, custom_id)
+            );
+        `);
+
+        await this.exec(`
+            CREATE TABLE IF NOT EXISTS ticket_responses (
+                id ${pkAuto},
+                ticket_id INTEGER NOT NULL,
+                field_id INTEGER DEFAULT NULL,
+                field_label TEXT NOT NULL,
+                response_value TEXT NOT NULL,
+                created_at ${intBig} NOT NULL
+            );
+        `);
+
+        // Migración suave sobre tabla tickets
+        try { await this.exec("ALTER TABLE tickets ADD COLUMN panel_id INTEGER DEFAULT NULL;"); } catch (_) {}
+        try { await this.exec("ALTER TABLE tickets ADD COLUMN option_id INTEGER DEFAULT NULL;"); } catch (_) {}
+        try { await this.exec("ALTER TABLE tickets ADD COLUMN option_name TEXT DEFAULT NULL;"); } catch (_) {}
+
         // 6. SECCIONES Y PANELES DE TICKETS PERSONALIZADOS
         await this.exec(`
             CREATE TABLE IF NOT EXISTS ticket_sections (
@@ -220,6 +308,8 @@ class Database {
             await this.exec("ALTER TABLE ticket_sections ADD COLUMN category_name TEXT DEFAULT NULL;");
         } catch (_) {}
 
+        try { await this.exec("ALTER TABLE verification_requests ADD COLUMN rejection_reason TEXT DEFAULT NULL"); } catch (_) {}
+
         const profileAlters = [
             "ALTER TABLE soldier_profiles ADD COLUMN display_name TEXT DEFAULT NULL",
             "ALTER TABLE soldier_profiles ADD COLUMN plate TEXT DEFAULT NULL",
@@ -241,7 +331,8 @@ class Database {
                 status TEXT DEFAULT 'PENDING',
                 created_at ${intBig} NOT NULL,
                 reviewed_by TEXT DEFAULT NULL,
-                reviewed_at ${intBig} DEFAULT NULL
+                reviewed_at ${intBig} DEFAULT NULL,
+                rejection_reason TEXT DEFAULT NULL
             );
         `);
 

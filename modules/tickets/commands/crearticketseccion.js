@@ -47,7 +47,7 @@ module.exports = {
     async execute(bot, interaction) {
         if (!coreConfig.isGeneral(interaction.member)) {
             return interaction.reply({
-                content: "⛔ Solo el Alto Mando tiene autorización para crear secciones de tickets.",
+                content: "<:forbidden:1568246186702274733> Solo el Alto Mando tiene autorización para crear secciones de tickets.",
                 ephemeral: true
             });
         }
@@ -59,7 +59,7 @@ module.exports = {
         const role = interaction.options.getRole("rol_encargado");
 
         // Si especificó nombre de categoría, usarlo; de lo contrario usar TICKETS - NOMBRE
-        const targetCategoryName = customCategoryName || (existingCategory ? existingCategory.name : `🎫 TICKETS - ${nameRaw.toUpperCase()}`);
+        const targetCategoryName = customCategoryName || (existingCategory ? existingCategory.name : `<:tickets:1567998576641056900> TICKETS - ${nameRaw.toUpperCase()}`);
         const targetCategoryId = existingCategory ? existingCategory.id : null;
         const roleId = role ? role.id : null;
 
@@ -91,8 +91,8 @@ module.exports = {
         // 1. Título del Embed
         const titleInput = new TextInputBuilder()
             .setCustomId("modal_title")
-            .setLabel("Título del Panel Decorado")
-            .setPlaceholder(`Ej: 🎖️ DEPARTAMENTO DE ${nameRaw.toUpperCase()}`)
+            .setLabel("Título del Panel / Sección de Tickets")
+            .setPlaceholder(`Ej: <:stars:1568242028213706752> DEPARTAMENTO DE ${nameRaw.toUpperCase()}`)
             .setValue(`🎖️ ${nameRaw.toUpperCase()}`)
             .setStyle(TextInputStyle.Short)
             .setRequired(true);
@@ -125,8 +125,8 @@ module.exports = {
         const buttonInput = new TextInputBuilder()
             .setCustomId("modal_button")
             .setLabel("Texto del Botón")
-            .setPlaceholder(`Ej: 📩 Abrir Ticket de ${nameRaw}`)
-            .setValue(`📩 Abrir Ticket de ${nameRaw}`)
+            .setPlaceholder(`Ej: <:ticket:1565472130030772276> Abrir Ticket de ${nameRaw}`)
+            .setValue(` <:ticket:1565472130030772276> Abrir Ticket de ${nameRaw}`)
             .setStyle(TextInputStyle.Short)
             .setRequired(true);
 

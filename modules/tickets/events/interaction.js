@@ -1,79 +1,176 @@
 // modules/tickets/events/interaction.js
 "use strict";
 
+const {
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle,
+    ActionRowBuilder
+} = require("discord.js");
+
 const service = require("../service");
+const panelManager = require("../panelManager");
 
 module.exports = {
     name: "interactionCreate",
 
     async execute(bot, interaction) {
         try {
-            // 1. Envío de Modal de Creación de Sección de Tickets
-            if (interaction.isModalSubmit()) {
-                const id = interaction.customId || "";
-
-                if (id.startsWith("TICK_MDL_")) {
-                    const draftKey = id.replace("TICK_MDL_", "");
-                    let draft = bot._tempSectionDrafts?.get(draftKey);
-
-                    if (draft) {
-                        bot._tempSectionDrafts.delete(draftKey);
-                    } else {
-                        // Fallback si expiró o reinició
-                        draft = {
-                            name: "Tickets",
-                            panelChannelId: interaction.channelId,
-                            discordCategoryId: null,
-                            categoryName: "🎫 TICKETS",
-                            roleId: null
-                        };
+            // ========================================================
+            // 0. AUTOCOMPLETE PARA COMANDOS /panel
+            // ========================================================
+            if (interaction.isAutocomplete()) {
+                if (interaction.commandName === "panel") {
+                    const panelCmd = bot.client.commands.get("panel");
+                    if (panelCmd?.autocomplete) {
+                        return await panelCmd.autocomplete(bot, interaction);
                     }
-
-                    return await service.handleSectionModalSubmit(bot, interaction, draft);
                 }
                 return;
             }
 
-            // 2. Selector de Categoría en el Panel de Tickets General (Multi-categoría)
+            // ========================================================
+            // 1. SELECT MENUS: APERTURA EXCLUSIVA MEDIANTE STRING SELECT MENU
+            // ========================================================
             if (interaction.isStringSelectMenu()) {
-                if (interaction.customId === "TICKET_SELECT_CATEGORY") {
+                const customId = interaction.customId || "";
+
+                // Menú desplegable institucional: PANEL_SELECT_{panelId}_{chunkIndex}
+                if (customId.startsWith("PANEL_SELECT_")) {
+                    const selectedValue = interaction.values?.[0] || "";
+                    if (!selectedValue.startsWith("PANEL_OPT_")) return;
+
+                    const optionId = parseInt(selectedValue.replace("PANEL_OPT_", ""), 10);
+                    if (!optionId) return;
+
+                    const option = await panelManager.getOptionById(bot, optionId);
+                    if (!option) {
+                        return interaction.reply({
+                            content: "❌ La opción seleccionada ya no existe en el sistema.",
+                            ephemeral: true
+                        });
+                    }
+
+                    // Verificar si la opción cuenta con formulario modal configurado
+                    const form = await panelManager.getFormByOptionId(bot, option.id);
+                    const fields = form ? await panelManager.getFieldsByFormId(bot, form.id) : [];
+
+                    // Si tiene formulario con campos, abrir modal al usuario
+                    if (form && fields.length > 0) {
+                        const modal = new ModalBuilder()
+                            .setCustomId(`TICK_FORM_SUBMIT_${option.id}`)
+                            .setTitle((form.title || `Formulario de ${option.name}`).slice(0, 45));
+
+                        // Discord permite hasta 5 campos por modal
+                        const maxFields = fields.slice(0, 5);
+                        for (const f of maxFields) {
+                            const textInput = new TextInputBuilder()
+                                .setCustomId(`field_${f.id}`)
+                                .setLabel(f.label.slice(0, 45))
+                                .setStyle(f.field_type === "PARAGRAPH" ? TextInputStyle.Paragraph : TextInputStyle.Short)
+                                .setRequired(Boolean(f.required));
+
+                            if (f.placeholder) textInput.setPlaceholder(f.placeholder.slice(0, 100));
+                            if (f.min_length) textInput.setMinLength(f.min_length);
+                            if (f.max_length) textInput.setMaxLength(Math.min(f.max_length, 4000));
+
+                            modal.addComponents(new ActionRowBuilder().addComponents(textInput));
+                        }
+
+                        return await interaction.showModal(modal);
+                    }
+
+                    // Si no tiene formulario, crear el ticket de inmediato
+                    await interaction.deferReply({ ephemeral: true });
+                    return await service.createDynamicTicket(bot, interaction, option.id, []);
+                }
+
+                // Menú legado de multi-categorías (/ticketpanel tradicional)
+                if (customId === "TICKET_SELECT_CATEGORY") {
                     const selectedValue = interaction.values?.[0] || "";
                     const categoryId = selectedValue.replace("ticket_cat_", "");
 
-                    try {
-                        await interaction.message.edit({
-                            components: interaction.message.components
-                        }).catch(() => null);
-                    } catch (_) {}
+                    // Intentar buscar si coincide con una opción dinámica
+                    const option = await panelManager.getOptionByCustomId(bot, 1, categoryId);
+                    if (option) {
+                        await interaction.deferReply({ ephemeral: true });
+                        return await service.createDynamicTicket(bot, interaction, option.id, []);
+                    }
 
-                    return await service.createTicket(bot, interaction, categoryId);
+                    return interaction.reply({
+                        content: "⚠️ Esta plantilla tradicional ha sido migrada a los nuevos Paneles Institucionales (`/panel`).",
+                        ephemeral: true
+                    });
                 }
+
                 return;
             }
 
-            // 3. Botones del Sistema de Tickets
+            // ========================================================
+            // 2. MODALES: RESPUESTAS DE FORMULARIOS DE TICKETS
+            // ========================================================
+            if (interaction.isModalSubmit()) {
+                const customId = interaction.customId || "";
+
+                if (customId.startsWith("TICK_FORM_SUBMIT_")) {
+                    const optionId = parseInt(customId.replace("TICK_FORM_SUBMIT_", ""), 10);
+                    if (!optionId) return;
+
+                    const form = await panelManager.getFormByOptionId(bot, optionId);
+                    const fields = form ? await panelManager.getFieldsByFormId(bot, form.id) : [];
+
+                    const responses = [];
+                    for (const f of fields.slice(0, 5)) {
+                        const val = interaction.fields.getTextInputValue(`field_${f.id}`);
+                        responses.push({
+                            field_id: f.id,
+                            field_label: f.label,
+                            response_value: val || ""
+                        });
+                    }
+
+                    await interaction.deferReply({ ephemeral: true });
+                    return await service.createDynamicTicket(bot, interaction, optionId, responses);
+                }
+
+                return;
+            }
+
+            // ========================================================
+            // 3. BOTONES: GESTIÓN DE TICKETS Y CONFIRMACIONES
+            // ========================================================
             if (interaction.isButton()) {
                 const id = interaction.customId || "";
 
-                if (!id.startsWith("TICK_")) return;
+                // Confirmación de eliminación de panel administrativo
+                if (id.startsWith("PANEL_CONFIRM_DEL_")) {
+                    const panelId = parseInt(id.replace("PANEL_CONFIRM_DEL_", ""), 10);
+                    const panel = await panelManager.getPanelById(bot, panelId);
 
-                // Abrir ticket desde panel de sección personalizada
-                if (id.startsWith("TICK_OPEN_SEC_")) {
-                    const sectionId = id.replace("TICK_OPEN_SEC_", "");
-                    return await service.openSectionTicket(bot, interaction, sectionId);
+                    await panelManager.deletePanel(bot, panelId);
+
+                    return interaction.update({
+                        content: `🗑️ El panel **${panel ? panel.name : panelId}** y sus opciones han sido eliminados de la base de datos.`,
+                        components: []
+                    });
                 }
 
-                // Solicitar cierre con confirmación
+                if (id === "PANEL_CANCEL_DEL") {
+                    return interaction.update({
+                        content: "❌ Eliminación cancelada.",
+                        components: []
+                    });
+                }
+
+                // Botones operativos dentro del ticket
                 if (id === "TICK_CLOSE") {
                     return await service.requestClose(bot, interaction);
                 }
 
-                // Confirmar cierre definitivo
                 if (id === "TICK_CONFIRM_CLOSE") {
                     return await service.executeClose(bot, interaction);
                 }
 
-                // Cancelar cierre
                 if (id === "TICK_CANCEL_CLOSE") {
                     return await interaction.update({
                         content: "✅ Cierre cancelado. El ticket continuará activo.",
@@ -81,12 +178,10 @@ module.exports = {
                     });
                 }
 
-                // Reclamar ticket
                 if (id === "TICK_CLAIM") {
                     return await service.claimTicket(bot, interaction);
                 }
 
-                // Transcripción rápida
                 if (id === "TICK_TRANSCRIPT") {
                     await interaction.deferReply({ ephemeral: true });
                     const ticket = await bot.db.get("SELECT * FROM tickets WHERE channel_id = ?", [interaction.channelId]);
@@ -98,19 +193,18 @@ module.exports = {
                 }
             }
         } catch (err) {
-            console.error("[tickets interaction error]:", err);
-            try {
-                if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({
-                        content: `❌ Ocurrió un error al procesar el ticket: ${err.message || "Error desconocido."}`,
-                        ephemeral: true
-                    });
-                } else if (interaction.deferred) {
-                    await interaction.editReply({
-                        content: `❌ Ocurrió un error al procesar el ticket: ${err.message || "Error desconocido."}`
-                    });
-                }
-            } catch (_) {}
+            console.error("[tickets interactionCreate] Error:", err);
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: "Ocurrió un error al procesar la interacción del sistema de tickets.",
+                    ephemeral: true
+                }).catch(() => null);
+            } else {
+                await interaction.followUp({
+                    content: "Ocurrió un error al procesar la interacción.",
+                    ephemeral: true
+                }).catch(() => null);
+            }
         }
     }
 };

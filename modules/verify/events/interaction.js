@@ -17,7 +17,10 @@ module.exports = {
                 return service.handleDecision(bot, interaction, true);
             }
             if (interaction.isButton() && interaction.customId === "VERIFY_DENY") {
-                return service.handleDecision(bot, interaction, false);
+                return service.openDenyModal(bot, interaction);
+            }
+            if (interaction.isModalSubmit() && interaction.customId?.startsWith("VERIFY_DENY_MODAL_")) {
+                return service.submitDeny(bot, interaction);
             }
         } catch (err) {
             console.error("[verify] Error de interacción:", err);

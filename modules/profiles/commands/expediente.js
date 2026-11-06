@@ -68,14 +68,14 @@ module.exports = {
         const active = await db.get("SELECT * FROM hours_active WHERE user_id = ?", [userId]);
         const absence = await bot.modules?.absences?.service?.isAbsent(userId).catch(() => null);
 
-        let estadoServicio = "⚪ **Libre de Servicio**";
+        let estadoServicio = "<:online:1565829960638267414> **Libre de Servicio**";
         if (absence) {
-            estadoServicio = `🏖️ **Inactivo / Permiso Militar**\n└ *Motivo:* ${absence.reason} (Retorno: \`${absence.duration}\`)`;
+            estadoServicio = `<a:offline:1567957044928192673> **Inactivo / Permiso Militar**\n└ *Motivo:* ${absence.reason} (Retorno: \`${absence.duration}\`)`;
         } else if (active) {
             if (active.paused_at) {
-                estadoServicio = `⏸️ **En Pausa** (desde <t:${Math.floor(active.paused_at / 1000)}:R>)`;
+                estadoServicio = `<:paused:1565446432058638386> **En Pausa** (desde <t:${Math.floor(active.paused_at / 1000)}:R>)`;
             } else {
-                estadoServicio = `🟢 **En Servicio Activo** (iniciado <t:${Math.floor(active.start / 1000)}:R>)`;
+                estadoServicio = `<:active:1565445915781763336> **En Servicio Activo** (iniciado <t:${Math.floor(active.start / 1000)}:R>)`;
             }
         }
 
@@ -92,11 +92,11 @@ module.exports = {
         const warnings = warnRow?.warnings || 0;
         const blocked = await db.get("SELECT reason FROM hours_blocked WHERE user_id = ?", [userId]);
 
-        let disciplinario = `⚠️ **Advertencias:** \`${warnings}/3\``;
+        let disciplinario = `<a:alert:1565453809038262432> **Advertencias:** \`${warnings}/3\``;
         if (blocked) {
-            disciplinario += `\n⛔ **ESTADO:** \`SUSPENDIDO / CORTE MARCIAL\`\n*Motivo:* ${blocked.reason}`;
+            disciplinario += `\n<:suspended:1565457686806397093> **ESTADO:** \`SUSPENDIDO / CORTE MARCIAL\`\n*Motivo:* ${blocked.reason}`;
         } else if (warnings === 0) {
-            disciplinario += "\n✅ **Conducta:** `Impecable`";
+            disciplinario += "\n<:verified:1565457686806397093> **Conducta:** `Impecable`";
         }
 
         let medalsList = "Sin condecoraciones aún.";
@@ -138,8 +138,8 @@ module.exports = {
             ? `\`[${profile.plate}] ${profile.display_name || targetUser.username} ${code}\``
             : "`Sin placa — pendiente de verificación`";
         const verified = profile.verified_at
-            ? `✅ Verificado <t:${Math.floor(Number(profile.verified_at) / 1000)}:d>`
-            : "❌ Sin verificar";
+            ? `<a:verified:1563959567191244892> Verificado <t:${Math.floor(Number(profile.verified_at) / 1000)}:d>`
+            : "<a:unverified:1565457686806397093> Sin verificar";
 
         let arrestLine = `• **Semana:** \`${Number(arrestsWeek?.n || 0)}\` efectuados\n• **Total:** \`${Number(arrestsTotal?.n || 0)}\` efectuados`;
         if (lastArrest) {
@@ -149,19 +149,19 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setColor(coreConfig.colors.militaryGold || "#d4af37")
-            .setTitle(`🎖️ EXPEDIENTE MILITAR — ${targetUser.username}`)
+            .setTitle(`<:profile:1565472624921018491> EXPEDIENTE MILITAR — ${targetUser.username}`)
             .setThumbnail(targetUser.displayAvatarURL({ size: 256 }))
             .setDescription(`Identidad operativa: ${identity}\n${verified}`)
             .addFields([
-                { name: "👤 Soldado", value: `<@${userId}>`, inline: true },
-                { name: "🔰 Rango", value: `**${rankName}** ${code}`, inline: true },
-                { name: "🛡️ División", value: `**${divisionName}**`, inline: true },
-                { name: "📡 Estado actual", value: estadoServicio, inline: false },
-                { name: "⏱️ Servicio", value: `• **Semana:** \`${hm(weeklyMinutes)}\`\n• **Histórico:** \`${hm(totalMinutes)}\``, inline: true },
-                { name: "⚖️ Disciplina", value: disciplinario, inline: true },
-                { name: "🚨 Arrestos", value: arrestLine, inline: true },
-                { name: "📦 Abastecimiento", value: `• **Semana:** \`${Number(suppliesWeek?.n || 0)}\`\n• **Total:** \`${Number(suppliesTotal?.n || 0)}\``, inline: true },
-                { name: "🏅 Condecoraciones", value: medalsList, inline: false }
+                { name: "<:soldier:1567962392921505963> Soldado", value: `<@${userId}>`, inline: true },
+                { name: "<:rank:1567997890356445373> Rango", value: `**${rankName}** ${code}`, inline: true },
+                { name: "<:division:1567999300116414494> División", value: `**${divisionName}**`, inline: true },
+                { name: "<:status:1565445915781763336> Estado actual", value: estadoServicio, inline: false },
+                { name: "<a:clock:1563960095950245888> Servicio", value: `• **Semana:** \`${hm(weeklyMinutes)}\`\n• **Histórico:** \`${hm(totalMinutes)}\``, inline: true },
+                { name: "<:discipline:1568001868964167781> Disciplina", value: disciplinario, inline: true },
+                { name: "<a:arrest:1565823848610406523> Arrestos", value: arrestLine, inline: true },
+                { name: "<:supplies:1568241632489508945> Abastecimiento", value: `• **Semana:** \`${Number(suppliesWeek?.n || 0)}\`\n• **Total:** \`${Number(suppliesTotal?.n || 0)}\``, inline: true },
+                { name: "<:stars:1568242028213706752> Condecoraciones", value: medalsList, inline: false }
             ])
             .setFooter({ text: "Comando General • Sistema Táctico de Personal" })
             .setTimestamp();

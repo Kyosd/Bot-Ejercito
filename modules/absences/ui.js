@@ -16,21 +16,21 @@ async function buildPayload(bot) {
 
     let desc = "";
     if (activeList.length === 0) {
-        desc = "✅ **Todo el contingente militar se encuentra disponible para servicio activo.**\nNo hay reportes de ausencia vigentes.";
+        desc = "<a:online:1565448013218848949> **Todo el contingente militar se encuentra disponible para servicio activo.**\nNo hay reportes de ausencia vigentes.";
     } else {
         const lines = activeList.map((a, i) => {
             const startTs = Math.floor(Number(a.start_date) / 1000);
-            return `**${i + 1}.** <@${a.user_id}> — **${a.reason}**\n   └ ⏳ *Retorno estimado:* \`${a.duration}\` · *Desde:* <t:${startTs}:R>`;
+            return `**${i + 1}.** <@${a.user_id}> — **${a.reason}**\n   └ <a:clock:1563960095950245888> *Retorno estimado:* \`${a.duration}\` · *Desde:* <t:${startTs}:R>`;
         });
         desc = lines.join("\n\n");
     }
 
     const embed = new EmbedBuilder()
         .setColor(config.colors.ui)
-        .setTitle("📋 REGISTRO OFICIAL DE AUSENCIAS E INACTIVIDAD MILITAR")
+        .setTitle("<a:write:1563959662003622014> REGISTRO OFICIAL DE AUSENCIAS E INACTIVIDAD MILITAR")
         .setDescription(
             "Reporta aquí tus periodos de inactividad justificada (viajes, estudios, salud) para evitar sanciones disciplinarias por inasistencia.\n\n" +
-            "🔒 **Regla Operativa:**\n" +
+            "<a:warning:1565451290367107092> **Regla Operativa:**\n" +
             "Mientras tengas un registro de ausencia activo, **el sistema no te permitirá iniciar servicio de guardia, registrar arrestos ni despachar abastecimientos.**\n\n" +
             "────────────────────────────────────────\n" +
             "**Soldados actualmente con permiso / inactivos:**\n\n" +
@@ -43,12 +43,12 @@ async function buildPayload(bot) {
         new ButtonBuilder()
             .setCustomId("ABSENCE_OPEN")
             .setLabel("Reportar Ausencia")
-            .setEmoji("📝")
+            .setEmoji("<a:write:1563959662003622014>")
             .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
             .setCustomId("ABSENCE_END_MY")
             .setLabel("Reincorporarme")
-            .setEmoji("🔄")
+            .setEmoji("<a:refresh:1563960095950245888>")
             .setStyle(ButtonStyle.Secondary)
     );
 

@@ -384,7 +384,7 @@ module.exports = {
       await logs.manualAdd(bot, interaction.user, userId, minutes);
 
       return safeReply(interaction, {
-        content: `➕ Se han añadido **${minutes} minutos** al expediente de <@${userId}>.`,
+        content: `<:added:1565461915306565784> Se han añadido **${minutes} minutos** al expediente de <@${userId}>.`,
         ephemeral: true
       });
     }
@@ -400,7 +400,7 @@ module.exports = {
       await logs.manualRemove(bot, interaction.user, userId, minutes);
 
       return safeReply(interaction, {
-        content: `➖ Se han restado **${minutes} minutos** al expediente de <@${userId}>.`,
+        content: `<:removed:1565467203623460934> Se han restado **${minutes} minutos** al expediente de <@${userId}>.`,
         ephemeral: true
       });
     }

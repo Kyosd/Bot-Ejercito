@@ -46,7 +46,7 @@ module.exports = {
 
         if (!isGeneral) {
             return interaction.reply({
-                content: "⛔ No tienes rango de mando para usar el sistema disciplinario.",
+                content: "<a:warning:1565451290367107092> No tienes rango de mando para usar el sistema disciplinario.",
                 ephemeral: true
             });
         }
@@ -125,14 +125,14 @@ module.exports = {
             if (sanctionsChannel && sanctionsChannel.isTextBased()) {
                 const sanctionEmbed = new EmbedBuilder()
                     .setColor(isCourtMartial ? coreConfig.colors.danger : (cfg.colors?.warning || "#ffaa00"))
-                    .setTitle(isCourtMartial ? "🚨 EXPEDIENTE DISCIPLINARIO — CORTE MARCIAL" : "📄 REPORTE DE SANCIÓN MILITAR")
+                    .setTitle(isCourtMartial ? "<a:siren:1565823848610406523> EXPEDIENTE DISCIPLINARIO — CORTE MARCIAL" : "<a:write:1563959662003622014> REPORTE DE SANCIÓN MILITAR")
                     .setDescription(
-                        `👤 **Agente Sancionado:** ${soldierTag} (${soldierId})\n` +
-                        `📝 **Motivo:** ${reason}\n` +
-                        `⚠️ **Advertencia:** \`${newWarning}/3\` ${isCourtMartial ? "**[LÍMITE ALCANZADO]**" : ""}\n` +
-                        `📎 **Pruebas:** ${evidence}\n` +
-                        `🎖️ **Oficial Instructor:** ${generalTag}\n` +
-                        `📅 **Fecha:** <t:${Math.floor(Date.now() / 1000)}:F>`
+                        `<:prohibition:1565457686806397093> **Agente Sancionado:** ${soldierTag} (${soldierId})\n` +
+                        `<a:read:1563965558884671638> **Motivo:** ${reason}\n` +
+                        `<a:alert:1565453809038262432> **Advertencia:** \`${newWarning}/3\` ${isCourtMartial ? "**[LÍMITE ALCANZADO]**" : ""}\n` +
+                        `<:add:1568244060521762838> **Pruebas:** ${evidence}\n` +
+                        `<:rank:1567997890356445373> **Oficial Instructor:** ${generalTag}\n` +
+                        `<:calendar:1568245191146602537> **Fecha:** <t:${Math.floor(Date.now() / 1000)}:F>`
                     )
                     .setFooter({
                         text: isCourtMartial
@@ -190,7 +190,7 @@ module.exports = {
         );
 
         return interaction.reply({
-            content: `✅ **Sanción registrada correctamente para ${soldierTag}.**${isCourtMartial ? "\n🚨 **ALERTA: Se ha ejecutado Corte Marcial por acumulación de 3/3 advertencias.**" : ""}`,
+            content: `<a:check:1563959567191244892> **Sanción registrada correctamente para ${soldierTag}.**${isCourtMartial ? "\n<a:siren:1565823848610406523> **ALERTA: Se ha ejecutado Corte Marcial por acumulación de 3/3 advertencias.**" : ""}`,
             components: [buttons, menu],
             ephemeral: true
         });

@@ -44,7 +44,7 @@ module.exports = {
         const isSelf = actor.id === interaction.user.id;
         if (!isSelf && !coreConfig.isGeneral(interaction.member)) {
             return interaction.reply({
-                content: "⛔ Solo el Alto Mando puede registrar abastecimientos de otro soldado.",
+                content: "<:forbidden:1568246186702274733> Solo el Alto Mando puede registrar abastecimientos de otro soldado.",
                 ephemeral: true
             });
         }
@@ -55,8 +55,8 @@ module.exports = {
             const abs = await absenceService.isAbsent(bot, actor.id);
             if (abs) {
                 const msg = isSelf
-                    ? `⛔ **Acceso Denegado:** Cuentas con un reporte de ausencia militar activo (${abs.reason}). No puedes registrar abastecimientos hasta que te reincorpores.`
-                    : `⛔ **Operación Denegada:** El soldado <@${actor.id}> tiene un reporte de ausencia militar activo (${abs.reason}).`;
+                    ? `<:forbidden:1568246186702274733> **Acceso Denegado:** Cuentas con un reporte de ausencia militar activo (${abs.reason}). No puedes registrar abastecimientos hasta que te reincorpores.`
+                    : `<:forbidden:1568246186702274733> **Operación Denegada:** El soldado <@${actor.id}> tiene un reporte de ausencia militar activo (${abs.reason}).`;
                 return interaction.reply({ content: msg, ephemeral: true });
             }
         }
@@ -109,7 +109,7 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setColor(coreConfig.colors.success)
-            .setTitle("📦 ABASTECIMIENTO LOGÍSTICO REGISTRADO")
+            .setTitle("<:inventory:1568241632489508945> ABASTECIMIENTO LOGÍSTICO REGISTRADO")
             .setThumbnail(actor.displayAvatarURL ? actor.displayAvatarURL({ size: 128 }) : null)
             .addFields(
                 { name: "Soldado", value: `${identity}\n<@${actor.id}>`, inline: true },
@@ -135,7 +135,7 @@ module.exports = {
                 });
 
                 return interaction.reply({
-                    content: `📦 **Abastecimiento registrado con éxito.** Publicado en <#${targetChannel.id}>.`,
+                    content: `<:inventory:1568241632489508945> **Abastecimiento registrado con éxito.** Publicado en <#${targetChannel.id}>.`,
                     ephemeral: true
                 });
             }

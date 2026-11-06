@@ -25,13 +25,23 @@ function canSend(member) {
     return hasUser || hasRole;
 }
 
+function isValidHttpUrl(string) {
+    if (!string) return false;
+    try {
+        const url = new URL(string);
+        return url.protocol === "http:" || url.protocol === "https:";
+    } catch (_) {
+        return false;
+    }
+}
+
 // ============================================================
 // INICIAR PANEL
 // ============================================================
 async function start(bot, interaction, channelId) {
     if (!canSend(interaction.member)) {
         return interaction.reply({
-            content: "⛔ No tienes autorización para emitir comunicados oficiales.",
+            content: "<:forbidden:1568246186702274733> No tienes autorización para emitir comunicados oficiales.",
             ephemeral: true
         });
     }
@@ -44,7 +54,7 @@ async function start(bot, interaction, channelId) {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`scmodal_${channelId}`)
-            .setLabel("Comunicado Embed")
+            .setLabel("Comunicado Embed Decorado")
             .setEmoji("📄")
             .setStyle(ButtonStyle.Primary),
 
@@ -71,14 +81,14 @@ async function handleButton(bot, interaction) {
 
     if (!canSend(interaction.member)) {
         return interaction.reply({
-            content: "⛔ No tienes autorización para usar este control.",
+            content: "<:forbidden:1568246186702274733> No tienes autorización para usar este control.",
             ephemeral: true
         });
     }
 
     const channelId = id.split("_")[1];
 
-    // Modal embed
+    // Modal embed decorado
     if (id.startsWith("scmodal_")) {
         const modal = new ModalBuilder()
             .setCustomId(`scmodal_submit_${channelId}`)
@@ -89,17 +99,43 @@ async function handleButton(bot, interaction) {
                 new TextInputBuilder()
                     .setCustomId("msg_title")
                     .setLabel("Título del Comunicado")
-                    .setPlaceholder("Ejemplo: ORDEN DEL DÍA — BATALLÓN")
+                    .setPlaceholder("Ejemplo: ORDEN DEL DÍA — COMANDO GENERAL")
                     .setStyle(TextInputStyle.Short)
                     .setRequired(true)
+                    .setMaxLength(250)
             ),
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId("msg_content")
-                    .setLabel("Cuerpo del Comunicado")
-                    .setPlaceholder("Escribe el comunicado militar aquí...")
+                    .setLabel("Cuerpo / Contenido del Comunicado")
+                    .setPlaceholder("Escribe el contenido militar oficial aquí...")
                     .setStyle(TextInputStyle.Paragraph)
                     .setRequired(true)
+            ),
+            new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                    .setCustomId("msg_image")
+                    .setLabel("Imagen grande / Banner (URL opcional)")
+                    .setPlaceholder("https://i.imgur.com/tu_banner.png")
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(false)
+            ),
+            new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                    .setCustomId("msg_thumb")
+                    .setLabel("Miniatura / Escudo lateral (URL opcional)")
+                    .setPlaceholder("https://i.imgur.com/tu_escudo.png")
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(false)
+            ),
+            new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                    .setCustomId("msg_footer")
+                    .setLabel("Pie de página / Firma militar (Opcional)")
+                    .setPlaceholder("Ejemplo: Estado Mayor • División de Operaciones")
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(false)
+                    .setMaxLength(200)
             )
         );
 
@@ -117,6 +153,7 @@ async function handleButton(bot, interaction) {
                 new TextInputBuilder()
                     .setCustomId("msg_content")
                     .setLabel("Escribe el mensaje")
+                    .setPlaceholder("Escribe el texto que se enviará tal cual...")
                     .setStyle(TextInputStyle.Paragraph)
                     .setRequired(true)
             )
@@ -132,28 +169,56 @@ async function handleButton(bot, interaction) {
 async function handleModal(bot, interaction) {
     const id = interaction.customId;
     const channelId = id.split("_")[2];
-    const channel = interaction.guild?.channels?.cache?.get(channelId);
+    const channel = interaction.guild?.channels?.cache?.get(channelId) ||
+        await interaction.guild?.channels?.fetch(channelId).catch(() => null);
 
-    if (!channel) {
-        return interaction.reply({ content: "Error: canal militar no encontrado.", ephemeral: true });
+    if (!channel || !channel.isTextBased()) {
+        return interaction.reply({ content: "<a:alert:1565453809038262432> Error: canal militar no encontrado o no es de texto.", ephemeral: true });
     }
 
-    // Embed
+    // Embed decorado
     if (id.startsWith("scmodal_submit_")) {
-        const title = interaction.fields.getTextInputValue("msg_title");
-        const content = interaction.fields.getTextInputValue("msg_content");
+        const title = interaction.fields.getTextInputValue("msg_title").trim();
+        const content = interaction.fields.getTextInputValue("msg_content").trim();
+        const imageUrl = interaction.fields.getTextInputValue("msg_image")?.trim() || null;
+        const thumbUrl = interaction.fields.getTextInputValue("msg_thumb")?.trim() || null;
+        const footerText = interaction.fields.getTextInputValue("msg_footer")?.trim() || null;
+
+        const embedColor = config?.embedColor || coreConfig.colors.militaryGold || "#2d5a27";
 
         const embed = new EmbedBuilder()
-            .setColor(config?.embedColor || coreConfig.colors.embed)
+            .setColor(embedColor)
             .setTitle(`🎖️ ${title}`)
             .setDescription(content)
-            .setFooter({ text: `Emitido por ${interaction.user.tag}` })
             .setTimestamp();
+
+        // Footer táctico personalizado
+        if (footerText) {
+            embed.setFooter({
+                text: `${footerText} • Emitido por ${interaction.user.tag || interaction.user.username}`,
+                iconURL: interaction.user.displayAvatarURL({ size: 64 })
+            });
+        } else {
+            embed.setFooter({
+                text: `Comando General • Emitido por ${interaction.user.tag || interaction.user.username}`,
+                iconURL: interaction.user.displayAvatarURL({ size: 64 })
+            });
+        }
+
+        // Imagen principal
+        if (imageUrl && isValidHttpUrl(imageUrl)) {
+            embed.setImage(imageUrl);
+        }
+
+        // Miniatura
+        if (thumbUrl && isValidHttpUrl(thumbUrl)) {
+            embed.setThumbnail(thumbUrl);
+        }
 
         await channel.send({ embeds: [embed] });
 
         return interaction.reply({
-            content: `✅ Comunicado embed transmitido con éxito en <#${channelId}>.`,
+            content: `<a:check:1563959567191244892> **Comunicado oficial decorado transmitido con éxito en** <#${channelId}>.`,
             ephemeral: true
         });
     }
@@ -165,7 +230,7 @@ async function handleModal(bot, interaction) {
         await channel.send(content);
 
         return interaction.reply({
-            content: `✅ Mensaje transmitido con éxito en <#${channelId}>.`,
+            content: `<a:check:1563959567191244892> **Mensaje transmitido con éxito en** <#${channelId}>.`,
             ephemeral: true
         });
     }
@@ -181,7 +246,7 @@ module.exports = {
 
     onLoad(bot) {
         config = require("./config.js");
-        console.log("[sendCenter] Módulo cargado correctamente.");
+        console.log("[sendCenter] Módulo cargado correctamente");
     },
 
     start,

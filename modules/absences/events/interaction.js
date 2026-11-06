@@ -23,7 +23,7 @@ module.exports = {
                     const existing = await service.isAbsent(bot, interaction.user.id);
                     if (existing) {
                         return interaction.reply({
-                            content: `⚠️ Ya cuentas con una ausencia registrada activa:\n• **Motivo:** ${existing.reason}\n• **Retorno estimado:** ${existing.duration}\n\nSi deseas finalizarla o reincorporarte, pulsa el botón **Reincorporarme**.`,
+                            content: `<a:alert:1565453809038262432> Ya cuentas con una ausencia registrada activa:\n• **Motivo:** ${existing.reason}\n• **Retorno estimado:** ${existing.duration}\n\nSi deseas finalizarla o reincorporarte, pulsa el botón **Reincorporarme**.`,
                             ephemeral: true
                         });
                     }
@@ -69,14 +69,14 @@ module.exports = {
                     const active = await service.isAbsent(bot, interaction.user.id);
                     if (!active) {
                         return interaction.reply({
-                            content: "ℹ️ No tienes ninguna ausencia activa en este momento. Tu estado operativo ya es normal.",
+                            content: "<a:alert:1565453809038262432> No tienes ninguna ausencia activa en este momento. Tu estado operativo ya es normal.",
                             ephemeral: true
                         });
                     }
 
                     await service.endAbsence(bot, interaction.user.id);
                     return interaction.reply({
-                        content: "✅ **Reincorporación completada con éxito.**\nSe ha dado por concluido tu periodo de inactividad militar. Ya tienes habilitado el acceso para entrar en guardia, arrestos y abastecimientos.",
+                        content: "<a:success:1563959567191244892> **Reincorporación completada con éxito.**\nSe ha dado por concluido tu periodo de inactividad militar. Ya tienes habilitado el acceso para entrar en guardia, arrestos y abastecimientos.",
                         ephemeral: true
                     });
                 }
@@ -95,7 +95,7 @@ module.exports = {
                 await service.createAbsence(bot, interaction.user, combinedReason, duration);
 
                 return interaction.reply({
-                    content: `✅ **Reporte de ausencia militar registrado.**\n\n• **Motivo:** ${reason}\n• **Retorno estimado:** \`${duration}\`\n\n🔒 *Recuerda: Mientras dure tu inactividad no podrás ingresar a servicio ni registrar procedimientos operativos. Cuando vuelvas a estar disponible, pulsa 'Reincorporarme' en el panel.*`,
+                    content: `<a:success:1563959567191244892> **Reporte de ausencia militar registrado.**\n\n• **Motivo:** ${reason}\n• **Retorno estimado:** \`${duration}\`\n\n <a:alert:1565453809038262432> *Recuerda: Mientras dure tu inactividad no podrás ingresar a servicio ni registrar procedimientos operativos. Cuando vuelvas a estar disponible, pulsa 'Reincorporarme' en el panel.*`,
                     ephemeral: true
                 });
             }

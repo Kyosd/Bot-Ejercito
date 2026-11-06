@@ -59,7 +59,7 @@ module.exports = {
 
         if (sub === "add") {
             if (!coreConfig.isGeneral(interaction.member)) {
-                return interaction.reply({ content: "⛔ Solo el personal autorizado puede añadir miembros al ticket.", ephemeral: true });
+                return interaction.reply({ content: "<:forbidden:1568246186702274733> Solo el personal autorizado puede añadir miembros al ticket.", ephemeral: true });
             }
             const target = interaction.options.getUser("usuario");
             return service.addUser(bot, interaction, target);
@@ -67,7 +67,7 @@ module.exports = {
 
         if (sub === "remove") {
             if (!coreConfig.isGeneral(interaction.member)) {
-                return interaction.reply({ content: "⛔ Solo el personal autorizado puede expulsar miembros del ticket.", ephemeral: true });
+                return interaction.reply({ content: "<:forbidden:1568246186702274733> Solo el personal autorizado puede expulsar miembros del ticket.", ephemeral: true });
             }
             const target = interaction.options.getUser("usuario");
             return service.removeUser(bot, interaction, target);
@@ -78,7 +78,7 @@ module.exports = {
             const ticket = await bot.db.get("SELECT * FROM tickets WHERE channel_id = ?", [interaction.channelId]);
             const attachment = await service.generateTranscript(interaction.channel, ticket);
             return interaction.editReply({
-                content: "📋 **Aquí tienes la transcripción del ticket:**",
+                content: "<:write:1563959662003622014> **Aquí tienes la transcripción del ticket:**",
                 files: [attachment]
             });
         }

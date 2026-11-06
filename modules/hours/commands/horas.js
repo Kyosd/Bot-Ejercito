@@ -39,7 +39,7 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setColor(config.colors.embed)
-            .setTitle(`📡 Estado de servicio — ${user.displayName || user.username}`)
+            .setTitle(`<:status:1565445915781763336> Estado de servicio — ${user.displayName || user.username}`)
             .setThumbnail(user.displayAvatarURL({ size: 128 }))
             .addFields(
                 { name: "Estado", value: estado, inline: false },

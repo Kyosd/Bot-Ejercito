@@ -56,14 +56,14 @@ module.exports = {
     async deployPanel(bot, channel) {
         const embed = new EmbedBuilder()
             .setColor(config.colors.gold)
-            .setTitle("🛡️ Verificación de personal")
+            .setTitle("<:verify:1568001868964167781> Verificación de personal")
             .setDescription(
                 "Si ya perteneces a la unidad, verifica tu identidad para recibir **placa**, **apodo militar** y **roles de acceso**.\n\n" +
                 "**Formato de identificación**\n" +
-                "`[1508] Sebastian Duke ☆C☆`\n" +
+                "`[2004] Maximo Gutierrez ☆BG☆`\n" +
                 "• Placa aleatoria de 4 dígitos\n" +
                 "• El nombre que indiques en el formulario\n" +
-                "• Distintivo de rango (`☆C☆`, `☆R☆`, …)\n\n" +
+                "• Distintivo de rango según tus roles de Discord (`☆C☆`, `☆R☆`, …)\n\n" +
                 "El Alto Mando revisará tu solicitud antes de activar el acceso."
             )
             .setFooter({ text: "Sistema de verificación • Ejército Nacional" });
@@ -72,7 +72,7 @@ module.exports = {
             new ButtonBuilder()
                 .setCustomId("VERIFY_OPEN")
                 .setLabel("Verificarme")
-                .setEmoji("✅")
+                .setEmoji("<a:check:1563959567191244892>")
                 .setStyle(ButtonStyle.Success)
         );
 
@@ -140,7 +140,7 @@ module.exports = {
         const channel = await fetchTextChannel(bot, config.requestsChannel);
         if (!channel?.isTextBased()) {
             return interaction.reply({
-                content: "No está configurado el canal de solicitudes de verificación (`CHANNEL_VERIFICATION`).",
+                content: "No está configurado el canal de solicitudes de verificación (`CHANNEL_VERIFICATION` o `CHANNEL_VERIFY_REQUESTS`).",
                 ephemeral: true
             });
         }
@@ -151,7 +151,7 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setColor(config.colors.embed)
-            .setTitle("📥 Solicitud de verificación")
+            .setTitle("<:helper:1567962392921505963> Solicitud de verificación")
             .setThumbnail(interaction.user.displayAvatarURL({ size: 128 }))
             .setDescription(
                 `**Usuario:** <@${userId}> (\`${userId}\`)\n` +
@@ -178,15 +178,157 @@ module.exports = {
         );
 
         return interaction.reply({
-            content: "Tu solicitud fue enviada al Alto Mando. Te notificarán al verificarla.",
+            content: "Tu solicitud <a:send:1563959848914128937> fue enviada al Alto Mando. Te notificarán al verificarla.",
             ephemeral: true
         });
     },
 
+    // ============================================================
+    // MODAL PARA RECHAZAR SOLICITUD
+    // ============================================================
+    async openDenyModal(bot, interaction) {
+        if (!coreConfig.isGeneral(interaction.member)) {
+            return interaction.reply({
+                content: "<:forbidden:1568246186702274733> Solo el Alto Mando puede resolver verificaciones.",
+                ephemeral: true
+            });
+        }
+
+        const request = await bot.db.get(
+            "SELECT * FROM verification_requests WHERE message_id = ? AND status = 'PENDING'",
+            [interaction.message.id]
+        );
+
+        if (!request) {
+            return interaction.reply({
+                content: "Esta solicitud ya no se encuentra pendiente.",
+                ephemeral: true
+            });
+        }
+
+        const modal = new ModalBuilder()
+            .setCustomId(`VERIFY_DENY_MODAL_${interaction.message.id}`)
+            .setTitle("Rechazar Solicitud de Verificación");
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                    .setCustomId("deny_reason")
+                    .setLabel("Motivo del rechazo (Opcional)")
+                    .setPlaceholder("Ej: Nombre fuera de formato, roles no asignados, etc.")
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setRequired(false)
+                    .setMaxLength(500)
+            )
+        );
+
+        return interaction.showModal(modal);
+    },
+
+    // ============================================================
+    // SUBMIT DEL RECHAZO
+    // ============================================================
+    async submitDeny(bot, interaction) {
+        if (!coreConfig.isGeneral(interaction.member)) {
+            return interaction.reply({
+                content: "<:forbidden:1568246186702274733> Solo el Alto Mando puede resolver verificaciones.",
+                ephemeral: true
+            });
+        }
+
+        const messageId = interaction.customId.replace("VERIFY_DENY_MODAL_", "");
+        const reason = interaction.fields.getTextInputValue("deny_reason")?.trim() || "No cumple con los requisitos o formato solicitado.";
+        const db = bot.db;
+
+        const request = await db.get(
+            "SELECT * FROM verification_requests WHERE message_id = ? AND status = 'PENDING'",
+            [messageId]
+        );
+
+        if (!request) {
+            return interaction.reply({
+                content: "Esta solicitud ya no se encuentra pendiente.",
+                ephemeral: true
+            });
+        }
+
+        const now = Date.now();
+
+        await db.run(
+            "UPDATE verification_requests SET status = 'DENIED', reviewed_by = ?, reviewed_at = ?, rejection_reason = ? WHERE id = ?",
+            [interaction.user.id, now, reason, request.id]
+        );
+
+        // Actualizar el mensaje original en el canal de solicitudes
+        const reqChannel = await fetchTextChannel(bot, request.channel_id);
+        const originalMessage = reqChannel ? await reqChannel.messages.fetch(request.message_id).catch(() => null) : null;
+
+        const deniedEmbed = EmbedBuilder.from(originalMessage?.embeds?.[0] || new EmbedBuilder())
+            .setColor(config.colors.danger)
+            .setTitle("<:forbidden:1568246186702274733> Solicitud de verificación rechazada")
+            .addFields(
+                { name: "Rechazado por", value: `<@${interaction.user.id}>`, inline: true },
+                { name: "Motivo", value: reason, inline: false }
+            );
+
+        if (originalMessage) {
+            await originalMessage.edit({
+                content: `<:forbidden:1568246186702274733> Solicitud rechazada por <@${interaction.user.id}>.`,
+                embeds: [deniedEmbed],
+                components: []
+            }).catch(() => null);
+        }
+
+        // 1. Notificar al canal correspondiente de rechazos
+        const rejectionsChannelId = config.rejectionsChannel || config.requestsChannel;
+        const targetRejectionsChannel = await fetchTextChannel(bot, rejectionsChannelId);
+
+        if (targetRejectionsChannel?.isTextBased()) {
+            const auditEmbed = new EmbedBuilder()
+                .setColor(config.colors.danger)
+                .setTitle("<:prohibition:1565457686806397093> VERIFICACIÓN MILITAR RECHAZADA")
+                .setDescription(`Se ha denegado la solicitud de ingreso/verificación de un usuario.`)
+                .setThumbnail(interaction.guild.iconURL({ size: 128 }))
+                .addFields(
+                    { name: "<:member:1565472624921018491> Usuario denegado", value: `<@${request.user_id}> (\`${request.user_id}\`)`, inline: true },
+                    { name: "<a:write:1563959662003622014> Nombre solicitado", value: `\`${request.display_name}\``, inline: true },
+                    { name: "<:rank:1565472624921018491> Oficial calificador", value: `<@${interaction.user.id}>`, inline: true },
+                    { name: "<a:alert:1565453809038262432> Motivo oficial de rechazo", value: reason, inline: false }
+                )
+                .setFooter({ text: "Comando de Personal • Ejército Nacional" })
+                .setTimestamp(now);
+
+            // Si es un canal distinto al de requests, lo publicamos allí; si es el mismo y rejectionsChannelId no está configurado, la actualización del mensaje ya sirvió
+            if (config.rejectionsChannel || rejectionsChannelId !== request.channel_id) {
+                await targetRejectionsChannel.send({
+                    content: `<a:alert:1565453809038262432> Atención <@${request.user_id}>: Tu solicitud de verificación ha sido rechazada.`,
+                    embeds: [auditEmbed]
+                }).catch(() => null);
+            }
+        }
+
+        // 2. Notificar por DM al usuario
+        const deniedUser = await bot.client.users.fetch(request.user_id).catch(() => null);
+        await deniedUser?.send(
+            `<:forbidden:1568246186702274733> **Tu solicitud de verificación en ${interaction.guild.name} fue rechazada.**\n\n` +
+            `• **Motivo:** ${reason}\n` +
+            `• **Revisado por:** <@${interaction.user.id}>\n\n` +
+            `Por favor, corrige los datos necesarios y contacta al Alto Mando o vuelve a solicitarla cuando cumplas los requisitos.`
+        ).catch(() => null);
+
+        return interaction.reply({
+            content: `<a:check:1563959567191244892> Solicitud de <@${request.user_id}> rechazada y notificada en su canal correspondiente.`,
+            ephemeral: true
+        });
+    },
+
+    // ============================================================
+    // APROBAR SOLICITUD
+    // ============================================================
     async handleDecision(bot, interaction, approved) {
         if (!coreConfig.isGeneral(interaction.member)) {
             return interaction.reply({
-                content: "⛔ Solo el Alto Mando puede resolver verificaciones.",
+                content: "<:forbidden:1568246186702274733> Solo el Alto Mando puede resolver verificaciones.",
                 ephemeral: true
             });
         }
@@ -204,19 +346,9 @@ module.exports = {
             });
         }
 
+        // Si fue rechazar directo (fallback), abrir modal de motivo
         if (!approved) {
-            await db.run(
-                "UPDATE verification_requests SET status = 'DENIED', reviewed_by = ?, reviewed_at = ? WHERE id = ?",
-                [interaction.user.id, Date.now(), request.id]
-            );
-            await interaction.update({
-                content: `❌ Rechazada por <@${interaction.user.id}>.`,
-                embeds: interaction.message.embeds,
-                components: []
-            });
-            const deniedUser = await bot.client.users.fetch(request.user_id).catch(() => null);
-            await deniedUser?.send("❌ Tu solicitud de verificación fue rechazada. Contacta al Alto Mando.").catch(() => null);
-            return;
+            return this.openDenyModal(bot, interaction);
         }
 
         const guild = interaction.guild;
@@ -272,7 +404,7 @@ module.exports = {
 
         const resultEmbed = EmbedBuilder.from(interaction.message.embeds[0] || new EmbedBuilder())
             .setColor(config.colors.success)
-            .setTitle("✅ Verificación aprobada")
+            .setTitle("<a:check:1563959567191244892> Verificación aprobada")
             .addFields({ name: "Identificación asignada", value: `\`${nick}\``, inline: false });
 
         await interaction.update({
@@ -282,7 +414,7 @@ module.exports = {
         });
 
         await member.send(
-            `✅ **Verificación completada.**\nTu identificación es: **${nick}**\nYa tienes acceso a los canales de la unidad.`
+            `<a:check:1563959567191244892> **Verificación completada.**\nTu identificación es: **${nick}**\nYa tienes acceso a los canales de la unidad.`
         ).catch(() => null);
     },
 

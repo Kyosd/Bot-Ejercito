@@ -12,7 +12,7 @@ module.exports = {
     async execute(bot, interaction) {
         if (!coreConfig.isGeneral(interaction.member)) {
             return interaction.reply({
-                content: "⛔ No tienes autorización del Alto Mando para exportar datos del sistema.",
+                content: "<a:warning:1565451290367107092> No tienes autorización del Alto Mando para exportar datos del sistema.",
                 ephemeral: true
             });
         }
@@ -52,7 +52,7 @@ module.exports = {
 
             const embed = new EmbedBuilder()
                 .setColor(coreConfig.colors.militaryGold || "#d4af37")
-                .setTitle("💾 COPIA DE SEGURIDAD GENERADA")
+                .setTitle("<:backup:1565469393008332810> COPIA DE SEGURIDAD GENERADA")
                 .setDescription(
                     `Se ha generado un volcado íntegro de la base de datos militar (${db.type.toUpperCase()}).\n\n` +
                     `• **Sesiones de servicio:** \`${backupData.data.hours_sessions.length}\`\n` +

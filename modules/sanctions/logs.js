@@ -29,7 +29,7 @@ module.exports = async function logSanction(
 
     const embed = new EmbedBuilder()
         .setColor(cfg.colors.log)
-        .setTitle("📘 Log del Sistema de Sanciones")
+        .setTitle("<:log:1568001868964167781> Log del Sistema de Sanciones")
         .addFields(
             { name: "Acción", value: action },
             { name: "General", value: `<@${generalId}>`, inline: true },

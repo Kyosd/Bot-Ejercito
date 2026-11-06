@@ -17,7 +17,7 @@ module.exports = {
     async execute(bot, interaction) {
         if (!coreConfig.isGeneral(interaction.member)) {
             return interaction.reply({
-                content: "⛔ Solo el Alto Mando puede desplegar el panel de verificación.",
+                content: "<:forbidden:1568246186702274733> Solo el Alto Mando puede desplegar el panel de verificación.",
                 ephemeral: true
             });
         }
@@ -29,7 +29,7 @@ module.exports = {
 
         await service.deployPanel(bot, channel);
         return interaction.reply({
-            content: `✅ Panel de verificación listo en ${channel}.`,
+            content: `<a:check:1563959567191244892> Panel de verificación listo en ${channel}.`,
             ephemeral: true
         });
     }

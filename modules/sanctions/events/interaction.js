@@ -110,6 +110,11 @@ module.exports = {
                 await bot.db.run("DELETE FROM hours_blocked WHERE user_id = ? AND reason LIKE '%CORTE MARCIAL%'", [soldierId]);
             }
 
+            // Sincronizar roles de advertencia en Discord al retirar una advertencia
+            if (interaction.guild) {
+                await service.syncWarningRoles(interaction.guild, soldierId, remaining);
+            }
+
             return interaction.update({
                 content: `✅ Última sanción eliminada. Advertencias actuales de <@${soldierId}>: **${remaining}/3**`,
                 components: []
@@ -143,6 +148,11 @@ module.exports = {
 
             await service.removeAllWarnings(bot, soldierId);
             await bot.db.run("DELETE FROM hours_blocked WHERE user_id = ? AND reason LIKE '%CORTE MARCIAL%'", [soldierId]);
+
+            // Sincronizar roles de advertencia en Discord al resetear (retira los 3 roles de advertencia)
+            if (interaction.guild) {
+                await service.syncWarningRoles(interaction.guild, soldierId, 0);
+            }
 
             await logSanction(
                 bot,

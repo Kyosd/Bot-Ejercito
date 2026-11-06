@@ -8,7 +8,7 @@ module.exports = {
             .setColor(cfg.colors.warning)
             .setTitle("Advertencias activas")
             .setDescription(
-                `Soldado: ${soldierTag}\n⚠️ **${warnings}/3 advertencias activas**`
+                `Soldado: ${soldierTag}\n<a:alert:1565453809038262432> **${warnings}/3 advertencias activas**`
             )
             .setTimestamp();
     },

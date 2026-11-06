@@ -26,6 +26,7 @@ const chVerifyPanel = process.env.CHANNEL_VERIFY_PANEL || process.env.CHANNEL_VE
 const chArrests = process.env.CHANNEL_ARRESTS || chSanctions;
 const chSupplies = process.env.CHANNEL_SUPPLIES || null;
 const chAbsencesPanel = process.env.CHANNEL_ABSENCES_PANEL || process.env.CHANNEL_ABSENCES || chHoursPanel;
+const chVerifyRejections = process.env.CHANNEL_VERIFY_REJECTIONS || process.env.CHANNEL_VERIFICATION_REJECTIONS || null;
 
 const config = {
     token: process.env.DISCORD_TOKEN,
@@ -46,6 +47,7 @@ const config = {
         auditBackups: chAuditBackups,
         verifyPanel: chVerifyPanel,
         verifyRequests: chVerifyRequests,
+        verifyRejections: chVerifyRejections,
         arrests: chArrests,
         supplies: chSupplies,
         sanctions: chSanctions,
