@@ -123,7 +123,7 @@ module.exports = {
                 permissionOverwrites: overwrites
             });
 
-            console.log(`[tickets] ✅ Categoría de Discord creada automáticamente: "${categoryName}" (${category.id})`);
+            console.log(`[tickets] <a:check:1563959567191244892> Categoría de Discord creada automáticamente: "${categoryName}" (${category.id})`);
         }
 
         return category;
@@ -140,7 +140,7 @@ module.exports = {
         const option = await panelManager.getOptionById(bot, optionId);
         if (!option || option.status !== "ACTIVE") {
             return interaction.reply({
-                content: "❌ Esta opción de atención ya no se encuentra activa o no existe.",
+                content: "<:forbidden:1568246186702274733> Esta opción de atención ya no se encuentra activa o no existe.",
                 ephemeral: true
             });
         }
@@ -148,7 +148,7 @@ module.exports = {
         const panel = await panelManager.getPanelById(bot, option.panel_id);
         if (!panel || panel.status !== "ACTIVE") {
             return interaction.reply({
-                content: "❌ El panel de atención al que pertenece esta opción está desactivado temporalmente.",
+                content: "<:forbidden:1568246186702274733> El panel de atención al que pertenece esta opción está desactivado temporalmente.",
                 ephemeral: true
             });
         }
@@ -173,14 +173,14 @@ module.exports = {
 
         if (realOpenCount >= limit) {
             return interaction.reply({
-                content: `⛔ Ya tienes **${realOpenCount} ticket(s) abierto(s)** en la sección de **${option.name}** (Límite permitido: ${limit}). Por favor resuelve tus solicitudes activas antes de abrir otra.`,
+                content: `<:forbidden:1568246186702274733> Ya tienes **${realOpenCount} ticket(s) abierto(s)** en la sección de **${option.name}** (Límite permitido: ${limit}). Por favor resuelve tus solicitudes activas antes de abrir otra.`,
                 ephemeral: true
             });
         }
 
         // 2. Determinar categoría de Discord (Prioridad: Opción -> Panel -> General)
         const targetCatId = option.discord_category_id || panel.default_category_id || config.categoryId;
-        const categoryName = `🎫 TICKETS - ${option.name.toUpperCase()}`;
+        const categoryName = `<:tickets:1567998576641056900> TICKETS - ${option.name.toUpperCase()}`;
 
         // Obtener roles autorizados específicos de la opción
         let optionRoles = [];
@@ -331,7 +331,7 @@ module.exports = {
         if (formResponses.length > 0) {
             const formEmbed = new EmbedBuilder()
                 .setColor(coreConfig.colors?.militaryGold || "#d4af37")
-                .setTitle("📝 Información del Formulario Registrado")
+                .setTitle("<a:write:1563959662003622014> Información del Formulario Registrado")
                 .setDescription("Datos proporcionados por el solicitante al momento de la apertura:")
                 .addFields(
                     formResponses.map(r => ({
@@ -350,19 +350,19 @@ module.exports = {
             new ButtonBuilder()
                 .setCustomId("TICK_CLOSE")
                 .setLabel("Cerrar Ticket")
-                .setEmoji("🔒")
+                .setEmoji("<:close:1569733950132199546>")
                 .setStyle(ButtonStyle.Danger),
 
             new ButtonBuilder()
                 .setCustomId("TICK_CLAIM")
                 .setLabel("Reclamar Atención")
-                .setEmoji("👤")
+                .setEmoji("<:claim:1567962392921505963>")
                 .setStyle(ButtonStyle.Success),
 
             new ButtonBuilder()
                 .setCustomId("TICK_TRANSCRIPT")
                 .setLabel("Transcripción")
-                .setEmoji("📋")
+                .setEmoji("<a:transcript:1569736951089594488>")
                 .setStyle(ButtonStyle.Secondary)
         );
 
@@ -374,7 +374,7 @@ module.exports = {
 
         await channel.send({ content: mentions, embeds: embedsToSend, components: [actionRow] });
 
-        const confirmText = `✅ **Ticket creado exitosamente:** Dirígete a <#${channel.id}> para ser atendido en la sección de **${option.name}**.`;
+        const confirmText = `¿<a:check:1563959567191244892> **Ticket creado exitosamente:** Dirígete a <#${channel.id}> para ser atendido en la sección de **${option.name}**.`;
 
         if (interaction.replied || interaction.deferred) {
             return interaction.followUp({ content: confirmText, ephemeral: true });
@@ -392,7 +392,7 @@ module.exports = {
 
         if (!isStaff) {
             return interaction.reply({
-                content: "⛔ Solo el personal militar de mando o soporte puede reclamar tickets.",
+                content: "<a:warning:1565451290367107092> Solo el personal militar de mando o soporte puede reclamar tickets.",
                 ephemeral: true
             });
         }
@@ -407,7 +407,7 @@ module.exports = {
 
         if (ticket.claimed_by) {
             return interaction.reply({
-                content: `⚠️ Este ticket ya fue reclamado por <@${ticket.claimed_by}>.`,
+                content: `<a:alert:1565453809038262432> Este ticket ya fue reclamado por <@${ticket.claimed_by}>.`,
                 ephemeral: true
             });
         }
@@ -421,7 +421,7 @@ module.exports = {
         await interaction.channel.send({ embeds: [claimEmbed] });
 
         return interaction.reply({
-            content: "✅ Has reclamado este ticket con éxito.",
+            content: `<a:check:1563959567191244892> Has reclamado este ticket con éxito.`,
             ephemeral: true
         });
     },
@@ -443,7 +443,7 @@ module.exports = {
         );
 
         return interaction.reply({
-            content: "⚠️ **¿Confirmas el cierre de este ticket?** Se generará una copia de seguridad y el canal será eliminado.",
+            content: `<a:alert:1565453809038262432> **¿Confirmas el cierre de este ticket?** Se generará una copia de seguridad y el canal será eliminado.`,
             components: [confirmRow]
         });
     },
@@ -455,7 +455,7 @@ module.exports = {
         const ticket = await db.get("SELECT * FROM tickets WHERE channel_id = ?", [channel.id]);
 
         await interaction.update({
-            content: "🔒 **Cerrando ticket militar...** Generando transcripción de auditoría...",
+            content: `<:close:1569733950132199546> **Cerrando ticket militar...** Generando transcripción de auditoría...`,
             components: []
         });
 
@@ -480,7 +480,7 @@ module.exports = {
             if (logChannel && logChannel.isTextBased()) {
                 const logEmbed = new EmbedBuilder()
                     .setColor(config.colors.info)
-                    .setTitle("📁 TICKET MILITAR CERRADO — AUDITORÍA")
+                    .setTitle("<:save:1565469393008332810> TICKET MILITAR CERRADO — AUDITORÍA")
                     .setDescription(
                         `• **Canal:** \`#${channel.name}\`\n` +
                         `• **Solicitante:** ${ticket ? `<@${ticket.user_id}> (\`${ticket.user_id}\`)` : "N/A"}\n` +
@@ -504,7 +504,7 @@ module.exports = {
                 if (targetUser) {
                     const dmEmbed = new EmbedBuilder()
                         .setColor(config.colors.embed)
-                        .setTitle("📋 Copia de tu Ticket Militar")
+                        .setTitle("<a:transcript:1569736951089594488> Copia de tu Ticket Militar")
                         .setDescription(`Tu ticket en **${interaction.guild.name}** (\`#${channel.name}\`) ha sido cerrado. Adjuntamos la transcripción completa para tu respaldo.`);
                     await targetUser.send({ embeds: [dmEmbed], files: [transcriptAttachment] }).catch(() => null);
                 }
@@ -512,7 +512,7 @@ module.exports = {
         }
 
         // 5. Mensaje de despedida y borrado del canal
-        await channel.send("🛑 **Ticket finalizado.** Este canal se autodestruirá en 5 segundos...");
+        await channel.send("<a:warning:1565451290367107092> **Ticket finalizado.** Este canal se autodestruirá en 5 segundos...");
 
         setTimeout(async () => {
             await channel.delete("Ticket finalizado y archivado").catch(() => null);

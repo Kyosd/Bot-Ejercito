@@ -481,7 +481,7 @@ module.exports = {
                 .filter(p => p.name.toLowerCase().includes(query) || p.custom_id.toLowerCase().includes(query))
                 .slice(0, 25)
                 .map(p => ({
-                    name: `${p.name} (${p.status === "ACTIVE" ? "<a:online:1565448013218848949> Activo" : "<a:offline:1567957044928192673> Inactivo"})`.slice(0, 100),
+                    name: `${p.name} (${p.status === "ACTIVE" ? "🟢 Activo" : "🔴 Inactivo"})`.slice(0, 100),
                     value: p.custom_id
                 }));
             return interaction.respond(filtered);

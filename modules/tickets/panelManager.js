@@ -324,7 +324,7 @@ module.exports = {
             }
         } else {
             embed.addFields({
-                name: "⚠️ Sin opciones activas",
+                name: "<a:alert:1565453809038262432> Sin opciones activas",
                 value: "Actualmente no hay opciones de atención configuradas en este panel."
             });
         }
@@ -389,7 +389,7 @@ module.exports = {
         }
 
         if (updatedCount > 0) {
-            console.log(`[tickets] ✅ ${updatedCount} paneles institucionales sincronizados y actualizados en Discord.`);
+            console.log(`[tickets] <a:check:1563959567191244892> ${updatedCount} paneles institucionales sincronizados y actualizados en Discord.`);
         }
     }
 };
