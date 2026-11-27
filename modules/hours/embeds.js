@@ -30,7 +30,7 @@ module.exports = {
 
     return new EmbedBuilder()
       .setColor(config.colors.danger)
-      .setTitle("<a:exit:1565446798586282165> Servicio cerrado")
+      .setTitle("<:exit:1565446798586282165> Servicio cerrado")
       .setThumbnail(user.displayAvatarURL({ size: 128 }))
       .setDescription(`<@${user.id}> finalizó su turno.`)
       .addFields(

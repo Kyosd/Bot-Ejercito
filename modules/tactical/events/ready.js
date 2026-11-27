@@ -50,8 +50,7 @@ Desde esta terminal el Alto Mando podrá emitir órdenes de despliegue inmediato
 
 <:helper:1565445915781763336> Refuerzo de Servicios
 
-<a:siren:1568246186702274733> Respuesta ante Emergencias
-
+<a:siren:1565823848610406523> Respuesta ante Emergencias           
 ━━━━━━━━━━━━━━━━━━━━━━
 
 <a:online:1565448013218848949> Estado del Sistema: OPERATIVO
@@ -68,7 +67,7 @@ Presione el botón inferior para emitir una convocatoria oficial.`
                     .addComponents(
                         new ButtonBuilder()
                             .setCustomId("TACTICAL_DEPLOY")
-                            .setEmoji("<a:siren:1568246186702274733>")
+                            .setEmoji("<a:siren:1565823848610406523>")
                             .setLabel("Emitir Convocatoria")
                             .setStyle(ButtonStyle.Danger)
                     );
